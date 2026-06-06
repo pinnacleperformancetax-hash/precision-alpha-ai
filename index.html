@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Precision Alpha AI X24-X26</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#05070b;--panel:#0d1117;--panel2:#10151d;--line:#202838;--text:#f7f7f7;--muted:#a8b0bd;--gold:#d4a22f;--green:#67ff74;--red:#ff4f4f;--yellow:#ffd600}
+body{margin:0;background:radial-gradient(circle at top right,#151922 0,#05070b 48%,#020305 100%);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif;display:flex;min-height:100vh}
+.sidebar{width:270px;background:#070a0f;border-right:1px solid var(--line);padding:26px 20px;position:fixed;top:0;bottom:0;left:0;overflow:auto;display:flex;flex-direction:column}
+.badge{width:42px;height:42px;border:2px solid var(--gold);border-radius:12px;color:var(--gold);display:grid;place-items:center;font-weight:900;margin-bottom:14px}
+.sidebar h1{font-size:30px;line-height:.95;margin:0 0 8px;font-weight:900}
+.version{color:var(--muted);font-size:13px;margin:0 0 22px}
+.nav{display:block;width:100%;padding:12px 14px;margin:5px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:13px;text-align:left;font-weight:800;cursor:pointer;font-size:13px}
+.nav.active,.nav:hover{border-color:var(--gold);background:rgba(212,162,47,.08);color:#fff}
+.kill-wrap{margin-top:auto;padding-top:16px}
+.kill{width:100%;padding:12px 14px;background:rgba(255,79,79,.1);color:var(--red);border:1px solid rgba(255,79,79,.3);border-radius:13px;font-weight:900;cursor:pointer;font-size:13px}
+.kill:hover{background:rgba(255,79,79,.2)}
+.main{margin-left:270px;min-height:100vh;width:calc(100% - 270px);padding:38px 44px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px;flex-wrap:wrap;gap:10px}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.phase{display:inline-block;border:1px solid var(--gold);color:var(--gold);padding:8px 14px;border-radius:999px;font-size:13px;font-weight:900;letter-spacing:.03em}
+.status-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green);animation:blink 2s infinite}
+.status-dot.red{background:var(--red);box-shadow:0 0 7px var(--red);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.acct{font-size:13px;color:var(--muted)}
+.acct strong{color:var(--green)}
+.acct strong.loss{color:var(--red)}
+.refresh,.gold{background:linear-gradient(180deg,#f2bf4b,#c88d1f);border:0;color:#111;padding:12px 18px;border-radius:13px;font-weight:900;cursor:pointer;font-size:13px}
+.btn-submit{background:linear-gradient(180deg,#7fff8a,#3dd44a);border:0;color:#0a1a0a;padding:13px 18px;border-radius:13px;font-weight:900;cursor:pointer;font-size:14px;width:100%;margin-top:8px}
+.dark{background:#151a23;color:#fff;border:1px solid #343b4b;padding:12px 18px;border-radius:13px;font-weight:900;cursor:pointer;margin-left:8px}
+.view{display:none}.view.active{display:block}
+h2{font-size:44px;margin:0 0 28px;letter-spacing:-.04em;font-weight:900}
+.statgrid,.cardgrid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:18px;margin-bottom:26px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+.stat,.card,.panel,.hero{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 20px 80px rgba(0,0,0,.18)}
+.stat span,.card span,label{display:block;color:var(--muted);font-size:13px;font-weight:800;margin-bottom:8px}
+.stat strong,.card strong{display:block;color:var(--green);font-size:28px;line-height:1;font-weight:900;margin-bottom:8px}
+.stat small,.card p,.hero p{color:var(--muted);font-size:14px;line-height:1.35}
+.hero{margin-bottom:26px;padding:28px 32px}
+.hero h3{font-size:24px;line-height:1.17;margin:0 0 14px;max-width:1000px}
+.panel{margin-bottom:22px}
+.panel h3{margin:0 0 14px;font-size:20px;font-weight:900}
+.panel-title{font-size:15px;font-weight:900;margin-bottom:14px;color:var(--text)}
+input,select{width:100%;padding:13px 14px;margin:0 0 16px;background:#080b11;color:#fff;border:1px solid #2b3445;border-radius:13px;font-size:14px;font-family:inherit}
+input[type=range]{padding:4px 0;accent-color:var(--gold)}
+input:focus,select:focus{outline:none;border-color:var(--gold)}
+.notes,.log{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.note,.logitem{background:#111722;border:1px solid #2c3546;border-radius:14px;padding:13px;margin:0;color:#eef2f6;font-size:13px}
+.note.good{border-color:rgba(103,255,116,.3);background:rgba(103,255,116,.04)}
+.note.warn{border-color:rgba(255,214,0,.3);background:rgba(255,214,0,.04)}
+.note.bad{border-color:rgba(255,79,79,.3);background:rgba(255,79,79,.04)}
+#feed,#replayLog,#journalLog{display:grid;gap:9px}
+/* Rules */
+.rule-list{display:flex;flex-direction:column;gap:0}
+.rule{display:flex;align-items:center;gap:10px;font-size:13px;padding:10px 0;border-bottom:1px solid #161c28}
+.rule:last-child{border-bottom:none}
+.rule-dot{width:8px;height:8px;border-radius:50%;background:#333;flex-shrink:0}
+.rule.ok .rule-dot{background:var(--green)}
+.rule.warn .rule-dot{background:var(--yellow)}
+.rule.bad .rule-dot{background:var(--red)}
+.rule-val{margin-left:auto;font-size:12px;font-weight:800;color:#555}
+.rule.ok .rule-val{color:var(--green)}
+.rule.warn .rule-val{color:var(--yellow)}
+.rule.bad .rule-val{color:var(--red)}
+/* Gate result */
+.gate-result{margin:12px 0;padding:14px 16px;border-radius:14px;font-weight:800;font-size:14px;display:none;line-height:1.6}
+.gate-result.green{background:rgba(103,255,116,.07);border:1px solid rgba(103,255,116,.3);color:var(--green)}
+.gate-result.yellow{background:rgba(255,214,0,.07);border:1px solid rgba(255,214,0,.3);color:var(--yellow)}
+.gate-result.red{background:rgba(255,79,79,.07);border:1px solid rgba(255,79,79,.3);color:var(--red)}
+/* Quote */
+.quote-symbol{font-size:26px;font-weight:900;color:var(--gold)}
+.quote-price{font-size:40px;font-weight:900;margin:6px 0}
+.quote-sub{color:var(--muted);font-size:12px}
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:8px 10px;color:var(--muted);font-size:11px;border-bottom:1px solid var(--line);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.tbl td{padding:10px;border-bottom:1px solid #0d1018;color:var(--text)}
+.tbl tr:last-child td{border-bottom:none}
+.badge-pill{display:inline-block;padding:3px 9px;border-radius:8px;font-size:11px;font-weight:900}
+.badge-pill.buy{background:rgba(103,255,116,.15);color:var(--green)}
+.badge-pill.sell{background:rgba(255,79,79,.15);color:var(--red)}
+.badge-pill.filled{background:rgba(212,162,47,.15);color:var(--gold)}
+.badge-pill.pending,.badge-pill.accepted{background:rgba(168,176,189,.1);color:var(--muted)}
+/* AI box */
+.ai-loading{background:#111722;border:1px solid #2c3546;border-radius:14px;padding:18px;color:var(--muted);font-size:13px;text-align:center}
+.ai-box{border-radius:16px;padding:20px;margin-top:4px}
+.ai-box.good{background:rgba(103,255,116,.06);border:1px solid rgba(103,255,116,.3)}
+.ai-box.warn{background:rgba(255,214,0,.06);border:1px solid rgba(255,214,0,.3)}
+.ai-box.bad{background:rgba(255,79,79,.06);border:1px solid rgba(255,79,79,.3)}
+.ai-header{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px}
+.ai-body{font-size:13px;line-height:1.8;color:#eef2f6}
+/* Summary */
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.sum-item{background:#080b11;border:1px solid var(--line);border-radius:16px;padding:16px;text-align:center}
+.sum-item span{display:block;font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+.sum-item strong{font-size:24px;font-weight:900;color:var(--green)}
+.sum-item strong.loss{color:var(--red)}
+.sum-item strong.neutral{color:var(--gold)}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#0d1117;border:1px solid var(--line);border-radius:16px;padding:14px 20px;font-size:13px;font-weight:800;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999;max-width:340px}
+.toast.show{opacity:1}
+.toast.success{border-color:rgba(103,255,116,.4);color:var(--green)}
+.toast.error{border-color:rgba(255,79,79,.4);color:var(--red)}
+.toast.warn{border-color:rgba(255,214,0,.4);color:var(--yellow)}
+@media(max-width:900px){body{display:block}.sidebar{position:relative;width:100%;height:auto;flex-direction:row;flex-wrap:wrap}.main{margin-left:0;width:100%;padding:24px}.statgrid,.cardgrid,.grid2{grid-template-columns:1fr}h2{font-size:34px}}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="badge">PA</div>
+  <h1>Precision<br>Alpha AI</h1>
+  <p class="version">X24-X26 Institutional Execution Intelligence Suite</p>
+  <button class="nav active" data-view="environment">Environment</button>
+  <button class="nav" data-view="trade">Place Trade</button>
+  <button class="nav" data-view="replay">Replay Lab</button>
+  <button class="nav" data-view="mistakes">Mistake Tags</button>
+  <button class="nav" data-view="confidence">Confidence Decay</button>
+  <button class="nav" data-view="journal">Trade Journal</button>
+  <button class="nav" data-view="route">X24 Route Intelligence</button>
+  <button class="nav" data-view="volatility">X25 Volatility Containment</button>
+  <button class="nav" data-view="sync">X26 Synchronization</button>
+  <button class="nav" data-view="gate">Execution Gate</button>
+  <button class="nav" data-view="log">Trade Log</button>
+  <div class="kill-wrap">
+    <button id="killBtn" class="kill">⛔ KILL SWITCH</button>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div id="statusDot" class="status-dot"></div>
+      <span class="phase" id="statusPhase">X24-X26 • PAPER SAFE</span>
+    </div>
+    <div class="topbar-right">
+      <span class="acct">Balance: <strong id="topBal">Loading...</strong></span>
+      <span class="acct">P&L: <strong id="topPL">$0.00</strong></span>
+      <button class="refresh" id="refreshBtn">Refresh</button>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENT -->
+  <section id="environment" class="view active">
+    <h2>Environment</h2>
+    <div class="statgrid">
+      <div class="stat"><span>Account Value</span><strong id="dashBal">--</strong><small>Paper trading balance</small></div>
+      <div class="stat"><span>Today P&L</span><strong id="dashPL">$0.00</strong><small>Daily limit: $50.00</small></div>
+      <div class="stat"><span>Trades This Week</span><strong id="dashTrades">0 / 3</strong><small>Weekly maximum</small></div>
+      <div class="stat"><span>System Mode</span><strong>PAPER SAFE</strong><small>Live execution disabled</small></div>
+    </div>
+    <div class="hero">
+      <h3>Institutional execution intelligence suite combining autonomous route intelligence, volatility containment, replay enforcement, execution gates, and synchronization scoring — now connected to Alpaca paper trading.</h3>
+      <p>X24-X26 enforces all safety rules automatically. $50 daily loss limit · 3 trades/week · 10am–3:30pm EST only.</p>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">🛡️ Safety Rules</div>
+        <div class="rule-list">
+          <div class="rule" id="rule-daily"><span class="rule-dot"></span><span>Daily loss limit: $50.00</span><span id="rule-daily-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-trades"><span class="rule-dot"></span><span>Max 3 trades/week</span><span id="rule-trades-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-time"><span class="rule-dot"></span><span>Trading hours 10am–3:30pm EST</span><span id="rule-time-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-conf"><span class="rule-dot"></span><span>Min confidence score: 75</span><span id="rule-conf-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-vol"><span class="rule-dot"></span><span>Max volatility pressure: 70</span><span id="rule-vol-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-sync"><span class="rule-dot"></span><span>Min sync score: 75</span><span id="rule-sync-val" class="rule-val">--</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">📡 Open Positions</div>
+        <div id="positionsList"><p style="color:var(--muted);font-size:13px">Loading positions...</p></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📋 Recent Orders</div>
+      <div id="recentOrders"><p style="color:var(--muted);font-size:13px">Loading orders...</p></div>
+    </div>
+    <div class="panel">
+      <h3>Execution Intelligence Feed</h3>
+      <div id="feed"></div>
+    </div>
+  </section>
+
+  <!-- PLACE TRADE -->
+  <section id="trade" class="view">
+    <h2>Place Paper Trade</h2>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">Trade Setup</div>
+        <label>Stock Symbol</label>
+        <input type="text" id="tradeSymbol" placeholder="e.g. AAPL, TSLA, SPY"/>
+        <label>Action</label>
+        <select id="tradeAction"><option value="buy">BUY</option><option value="sell">SELL</option></select>
+        <label>Quantity (shares)</label>
+        <input type="number" id="tradeQty" value="1" min="1"/>
+        <label>Order Type</label>
+        <select id="tradeOrderType"><option value="market">Market Order</option><option value="limit">Limit Order</option></select>
+        <div id="limitPriceGroup" style="display:none">
+          <label>Limit Price ($)</label>
+          <input type="number" id="tradeLimitPrice" step="0.01" placeholder="0.00"/>
+        </div>
+        <label>X24 Confidence Score &nbsp;<strong id="tradeConfidenceVal" style="color:var(--gold)">75</strong></label>
+        <input type="range" min="0" max="100" value="75" id="tradeConfidence"/>
+        <label>X25 Volatility Pressure &nbsp;<strong id="tradeVolatilityVal" style="color:var(--gold)">50</strong></label>
+        <input type="range" min="0" max="100" value="50" id="tradeVolatility"/>
+        <label>X26 Sync Score &nbsp;<strong id="tradeSyncVal" style="color:var(--gold)">80</strong></label>
+        <input type="range" min="0" max="100" value="80" id="tradeSyncScore"/>
+        <label>🧠 AI Trading Style</label>
+        <select id="tradeStyle">
+          <option value="Momentum">🏃 Momentum — Ride strong moving stocks</option>
+          <option value="Mean Reversion">🔄 Mean Reversion — Buy dips, sell spikes</option>
+          <option value="Breakout">💥 Breakout — Enter on key level breaks</option>
+          <option value="Conservative">🐢 Conservative — Only highest confidence</option>
+          <option value="Aggressive">⚡ Aggressive — Higher risk, higher reward</option>
+        </select>
+        <div id="tradeGateResult" class="gate-result"></div>
+        <button class="gold" id="checkGateBtn" style="width:100%">🔍 Check Gate + AI Analysis</button>
+        <button class="btn-submit" id="submitTradeBtn" style="display:none">⚡ Submit Paper Trade</button>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="panel-title">📊 Live Quote</div>
+          <div id="quoteBox"><p style="color:var(--muted);font-size:13px">Enter a symbol and check the gate to see a live quote.</p></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">⚠️ Risk Calculator</div>
+          <div id="riskBox"><p style="color:var(--muted);font-size:13px">Set quantity to calculate risk.</p></div>
+        </div>
+        <div id="aiAnalysisBox" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPLAY -->
+  <section id="replay" class="view">
+    <h2>Replay Lab</h2>
+    <div class="panel">
+      <label>Replay Note</label>
+      <input id="replayNote" placeholder="Example: waited for confirmation before route">
+      <label>Replay Result</label>
+      <select id="replayResult">
+        <option>Approved Lesson</option><option>Route Blocked</option>
+        <option>Late Entry Avoided</option><option>Volatility Defense Triggered</option><option>Needs Review</option>
+      </select>
+      <button class="gold" id="saveReplay">Save Replay</button>
+      <button class="dark" id="clearReplay">Clear Log</button>
+    </div>
+    <div class="panel"><h3>Replay Log</h3><div id="replayLog"></div></div>
+  </section>
+
+  <!-- MISTAKES -->
+  <section id="mistakes" class="view">
+    <h2>Mistake Tags</h2>
+    <div class="cardgrid">
+      <div class="card"><span>Late Entry</span><strong>Watch</strong><p>Avoid entries after extension.</p></div>
+      <div class="card"><span>Chase Trade</span><strong>Blocked</strong><p>Route rejected when confidence decays.</p></div>
+      <div class="card"><span>Overexposure</span><strong>Limit</strong><p>Avoid stacking correlated setups.</p></div>
+      <div class="card"><span>Fatigue</span><strong>Monitor</strong><p>Switch to replay mode when execution quality falls.</p></div>
+    </div>
+  </section>
+
+  <!-- CONFIDENCE -->
+  <section id="confidence" class="view">
+    <h2>Confidence Decay</h2>
+    <div class="panel">
+      <label>Entry Window Quality &nbsp;<strong id="confidenceValue" style="color:var(--gold)">82</strong></label>
+      <input type="range" min="0" max="100" value="82" id="confidenceRange">
+      <button class="gold" id="runConfidence">Run Decay Check</button>
+      <div id="confidenceOutput" class="notes"></div>
+    </div>
+  </section>
+
+  <!-- JOURNAL -->
+  <section id="journal" class="view">
+    <h2>Trade Journal</h2>
+    <div class="panel">
+      <label>Ticker</label>
+      <input id="journalTicker" placeholder="Example: NVDA">
+      <label>Setup</label>
+      <select id="journalSetup">
+        <option>A/A+ Breakout</option><option>Pullback Reclaim</option>
+        <option>Liquidity Sweep Reclaim</option><option>Replay Only</option>
+      </select>
+      <label>Note</label>
+      <input id="journalNote" placeholder="What happened?">
+      <button class="gold" id="saveJournal">Save Journal</button>
+    </div>
+    <div class="panel"><h3>Journal Log</h3><div id="journalLog"></div></div>
+  </section>
+
+  <!-- X24 -->
+  <section id="route" class="view">
+    <h2>X24 Autonomous Route Intelligence</h2>
+    <div class="panel">
+      <label>Route Type</label>
+      <select id="routeType">
+        <option>Momentum Continuation</option><option>Liquidity Sweep Reclaim</option>
+        <option>Breakout Confirmation</option><option>Pullback Reclaim</option><option>Replay Only</option>
+      </select>
+      <label>Route Confidence &nbsp;<strong id="routeConfidenceValue" style="color:var(--gold)">82</strong></label>
+      <input type="range" min="0" max="100" value="82" id="routeConfidence">
+      <button class="gold" id="runRoute">Run Route Intelligence</button>
+      <div id="routeOutput" class="notes"></div>
+    </div>
+  </section>
+
+  <!-- X25 -->
+  <section id="volatility" class="view">
+    <h2>X25 Volatility Containment</h2>
+    <div class="panel">
+      <label>Volatility Pressure &nbsp;<strong id="volPressureValue" style="color:var(--gold)">61</strong></label>
+      <input type="range" min="0" max="100" value="61" id="volPressure">
+      <label>Containment Mode</label>
+      <select id="containMode">
+        <option>Normal Containment</option><option>Elevated Pressure</option>
+        <option>Defense Mode</option><option>Replay Enforcement</option>
+      </select>
+      <button class="gold" id="runContain">Analyze Volatility</button>
+      <div id="containOutput" class="notes"></div>
+    </div>
+  </section>
+
+  <!-- X26 -->
+  <section id="sync" class="view">
+    <h2>X26 Institutional Synchronization</h2>
+    <div class="cardgrid">
+      <div class="card"><span>Timing Sync</span><strong id="timingSync">84</strong><input id="timingSyncInput" type="range" min="0" max="100" value="84"></div>
+      <div class="card"><span>Risk Sync</span><strong id="riskSync">78</strong><input id="riskSyncInput" type="range" min="0" max="100" value="78"></div>
+      <div class="card"><span>Replay Sync</span><strong id="replaySync">88</strong><input id="replaySyncInput" type="range" min="0" max="100" value="88"></div>
+      <div class="card"><span>Route Sync</span><strong id="routeSync">81</strong><input id="routeSyncInput" type="range" min="0" max="100" value="81"></div>
+    </div>
+    <div class="panel">
+      <button class="gold" id="runSync">Run Synchronization</button>
+      <div id="syncOutput" class="notes"></div>
+    </div>
+  </section>
+
+  <!-- GATE -->
+  <section id="gate" class="view">
+    <h2>X26 Paper Execution Gate</h2>
+    <div class="panel">
+      <label>Execution Request</label>
+      <select id="executionRequest">
+        <option>Approve Paper Watch</option><option>Send to Paper Queue</option>
+        <option>Replay Before Route</option><option>Block Route</option>
+      </select>
+      <label>System Safety</label>
+      <select id="systemSafety">
+        <option>Normal</option><option>Elevated Risk</option>
+        <option>Volatility Defense</option><option>Replay Only</option>
+      </select>
+      <button class="gold" id="runGate">Run Execution Gate</button>
+      <div id="gateOutput" class="notes"></div>
+    </div>
+  </section>
+
+  <!-- TRADE LOG -->
+  <section id="log" class="view">
+    <h2>Trade Log</h2>
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="panel-title" style="margin:0">All Paper Trades</div>
+        <button class="refresh" id="refreshLog">Refresh</button>
+      </div>
+      <div id="tradeLogTable"><p style="color:var(--muted);font-size:13px">Loading...</p></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Weekly Summary</div>
+      <div id="weeklySummary"><p style="color:var(--muted);font-size:13px">Loading...</p></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const ALPACA_KEY    = 'PKOKJQWTT4NSZ64VGBN7GLEP6T';
+const ALPACA_SECRET = 'FonC1S7yhNZEx1p9Auscbs5s6qcTt4U4isjnwearYkad';
+const BASE_URL      = 'https://paper-api.alpaca.markets/v2';
+const DATA_URL      = 'https://data.alpaca.markets/v2';
+
+const RULES = {
+  maxDailyLoss:50, maxTrades:3, maxPositionSize:200,
+  maxLossPerTrade:15, takeProfitTarget:30,
+  minConfidence:75, maxVolatility:70, minSyncScore:75,
+  tradeStartHour:10, tradeEndHour:15, tradeEndMinute:30
+};
+
+let state = {
+  killed: false,
+  weeklyTrades: JSON.parse(localStorage.getItem('pa_weekly_trades')||'[]'),
+  todayPL: parseFloat(localStorage.getItem('pa_today_pl')||'0'),
+};
+
+const today = new Date().toDateString();
+if (localStorage.getItem('pa_last_date') !== today) {
+  state.todayPL = 0;
+  localStorage.setItem('pa_today_pl','0');
+  localStorage.setItem('pa_last_date', today);
+}
+function getWeekKey(){const d=new Date(),day=d.getDay(),diff=d.getDate()-day+(day===0?-6:1);return new Date(d.setDate(diff)).toDateString();}
+if (localStorage.getItem('pa_week_key') !== getWeekKey()) {
+  state.weeklyTrades=[];
+  localStorage.setItem('pa_weekly_trades','[]');
+  localStorage.setItem('pa_week_key', getWeekKey());
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const qs = s => document.querySelector(s);
+const qsa = s => Array.from(document.querySelectorAll(s));
+function fmtMoney(v){const n=parseFloat(v)||0;return(n<0?'-$':'$')+Math.abs(n).toFixed(2);}
+function toast(msg,type='success'){const el=qs('#toast');el.textContent=msg;el.className=`toast show ${type}`;setTimeout(()=>el.classList.remove('show'),3500);}
+function notes(id,items){const el=qs('#'+id);if(!el)return;el.innerHTML=items.map(([t,c=''])=>`<div class="note ${c}">${t}</div>`).join('');}
+function showView(id){qsa('.view').forEach(v=>v.classList.remove('active'));qsa('.nav').forEach(b=>b.classList.remove('active'));qs('#'+id)?.classList.add('active');qsa('.nav').find(b=>b.dataset.view===id)?.classList.add('active');}
+function isMarketHours(){const now=new Date(),est=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'})),h=est.getHours(),m=est.getMinutes();return(h>RULES.tradeStartHour||(h===RULES.tradeStartHour&&m>=0))&&(h<RULES.tradeEndHour||(h===RULES.tradeEndHour&&m<=RULES.tradeEndMinute));}
+function setRule(id,cls,val){const el=qs('#'+id);if(!el)return;el.className=`rule ${cls}`;const v=qs('#'+id+'-val');if(v)v.textContent=val;}
+function getStore(k){return JSON.parse(localStorage.getItem(k)||'[]');}
+function setStore(k,v){localStorage.setItem(k,JSON.stringify(v.slice(0,30)));}
+
+// ── ALPACA ────────────────────────────────────────────────────────────────────
+async function alpaca(path,method='GET',body=null){
+  const opts={method,headers:{'APCA-API-KEY-ID':ALPACA_KEY,'APCA-API-SECRET-KEY':ALPACA_SECRET,'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const res=await fetch(BASE_URL+path,opts);
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}
+  return res.json();
+}
+async function getLatestTrade(symbol){
+  const res=await fetch(`${DATA_URL}/stocks/${symbol}/trades/latest`,{headers:{'APCA-API-KEY-ID':ALPACA_KEY,'APCA-API-SECRET-KEY':ALPACA_SECRET}});
+  if(!res.ok)throw new Error('Symbol not found');
+  return res.json();
+}
+
+// ── AI ANALYZER ───────────────────────────────────────────────────────────────
+async function analyzeTradeWithAI(symbol,side,qty,price,confidence,volatility,syncScore,style){
+  const prompt=`You are Precision Alpha AI, an expert trading analyst. Analyze this paper trade and give a clear verdict.
+
+TRADE: ${side.toUpperCase()} ${qty} shares of ${symbol} at $${price.toFixed(2)} (total $${(price*qty).toFixed(2)})
+STYLE: ${style}
+SIGNALS: X24 Confidence ${confidence}/100 · X25 Volatility ${volatility}/100 · X26 Sync ${syncScore}/100
+RULES: Max loss $${RULES.maxLossPerTrade}/trade · Target profit $${RULES.takeProfitTarget}/trade · Max position $${RULES.maxPositionSize}
+
+Provide:
+1. VERDICT: exactly "✅ GOOD TRADE" or "⚠️ RISKY TRADE" or "❌ BAD TRADE"
+2. SCORE: 0-100
+3. REASON: 2-3 simple sentences anyone can understand
+4. STOP LOSS: specific price to exit if wrong
+5. TAKE PROFIT: specific price to exit when profitable
+6. TIP: one actionable tip for this trade
+
+Keep it simple. No jargon. Be direct and honest.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:prompt}]})
+  });
+  const data = await response.json();
+  return data.content[0].text;
+}
+
+// ── SAFETY GATE ───────────────────────────────────────────────────────────────
+function checkSafetyGate(confidence,volatility,syncScore){
+  const issues=[];const warns=[];
+  if(state.killed) issues.push('⛔ Kill switch is active');
+  if(state.todayPL<=-RULES.maxDailyLoss) issues.push(`Daily loss limit hit (${fmtMoney(state.todayPL)})`);
+  if(state.weeklyTrades.length>=RULES.maxTrades) issues.push(`Weekly trade limit reached (${state.weeklyTrades.length}/${RULES.maxTrades})`);
+  if(!isMarketHours()) issues.push('Outside trading hours (10am–3:30pm EST)');
+  if(confidence<RULES.minConfidence) issues.push(`Confidence too low (${confidence} < ${RULES.minConfidence})`);
+  if(volatility>RULES.maxVolatility) issues.push(`Volatility too high (${volatility} > ${RULES.maxVolatility})`);
+  if(syncScore<RULES.minSyncScore) issues.push(`Sync score too low (${syncScore} < ${RULES.minSyncScore})`);
+  if(confidence<80&&confidence>=RULES.minConfidence) warns.push(`Confidence borderline (${confidence})`);
+  if(volatility>60&&volatility<=RULES.maxVolatility) warns.push(`Volatility elevated (${volatility})`);
+  return{ok:issues.length===0,issues,warns};
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+async function loadDashboard(){
+  try{
+    const acct=await alpaca('/account');
+    const equity=parseFloat(acct.equity);
+    const pl=equity-parseFloat(acct.last_equity);
+    state.todayPL=pl;
+    localStorage.setItem('pa_today_pl',pl.toString());
+    qs('#dashBal').textContent=fmtMoney(equity);
+    qs('#topBal').textContent=fmtMoney(equity);
+    const plEl=qs('#dashPL');plEl.textContent=fmtMoney(pl);plEl.style.color=pl>=0?'var(--green)':'var(--red)';
+    const topPL=qs('#topPL');topPL.textContent=fmtMoney(pl);topPL.className=pl>=0?'':'loss';
+    qs('#dashTrades').textContent=`${state.weeklyTrades.length} / ${RULES.maxTrades}`;
+    updateRules();
+    await loadPositions();
+    await loadRecentOrders();
+  }catch(e){qs('#topBal').textContent='Error';console.error(e);}
+}
+
+function updateRules(){
+  const inHours=isMarketHours();
+  setRule('rule-daily',state.todayPL>-RULES.maxDailyLoss?'ok':'bad',state.todayPL>-RULES.maxDailyLoss?'OK':`STOP`);
+  setRule('rule-trades',state.weeklyTrades.length<RULES.maxTrades?'ok':'bad',`${state.weeklyTrades.length}/${RULES.maxTrades}`);
+  setRule('rule-time',inHours?'ok':'warn',inHours?'OPEN':'CLOSED');
+}
+
+async function loadPositions(){
+  try{
+    const pos=await alpaca('/positions');
+    if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}
+    qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);return`<tr><td><strong>${p.symbol}</strong></td><td>${p.qty}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;
+  }catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load positions.</p>';}
+}
+
+async function loadRecentOrders(){
+  try{
+    const orders=await alpaca('/orders?status=all&limit=8');
+    if(!orders.length){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">No orders yet.</p>';return;}
+    qs('#recentOrders').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td><td style="color:var(--muted);font-size:11px">${new Date(o.submitted_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+  }catch(e){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load orders.</p>';}
+}
+
+// ── PLACE TRADE ───────────────────────────────────────────────────────────────
+async function checkGate(){
+  const symbol=qs('#tradeSymbol').value.trim().toUpperCase();
+  const confidence=parseInt(qs('#tradeConfidence').value);
+  const volatility=parseInt(qs('#tradeVolatility').value);
+  const syncScore=parseInt(qs('#tradeSyncScore').value);
+  const qty=parseInt(qs('#tradeQty').value);
+  const side=qs('#tradeAction').value;
+  const style=qs('#tradeStyle').value;
+  const resultEl=qs('#tradeGateResult');
+  const submitBtn=qs('#submitTradeBtn');
+  const aiBox=qs('#aiAnalysisBox');
+  if(!symbol){toast('Enter a stock symbol first','warn');return;}
+
+  let price=0;
+  try{
+    const trade=await getLatestTrade(symbol);
+    price=trade.trade?.p||trade.trade?.price||0;
+    const cost=price*qty;
+    qs('#quoteBox').innerHTML=`<div class="quote-symbol">${symbol}</div><div class="quote-price">${fmtMoney(price)}</div><div class="quote-sub">Latest price · ${qty} share${qty>1?'s':''} = ${fmtMoney(cost)}</div>`;
+    qs('#riskBox').innerHTML=`<div class="rule-list">
+      <div class="rule ${cost<=RULES.maxPositionSize?'ok':'bad'}"><span class="rule-dot"></span><span>Position size: ${fmtMoney(cost)}</span><span class="rule-val">${cost<=RULES.maxPositionSize?'OK':'OVER $200'}</span></div>
+      <div class="rule ok"><span class="rule-dot"></span><span>Stop loss: ${fmtMoney(price-(RULES.maxLossPerTrade/qty))}</span></div>
+      <div class="rule ok"><span class="rule-dot"></span><span>Take profit: ${fmtMoney(price+(RULES.takeProfitTarget/qty))}</span></div>
+    </div>`;
+  }catch(e){qs('#quoteBox').innerHTML=`<p style="color:var(--muted);font-size:13px">Could not fetch quote for ${symbol}.</p>`;}
+
+  const gate=checkSafetyGate(confidence,volatility,syncScore);
+  resultEl.style.display='block';submitBtn.style.display='none';
+  setRule('rule-conf',confidence>=RULES.minConfidence?'ok':'bad',confidence.toString());
+  setRule('rule-vol',volatility<=RULES.maxVolatility?'ok':'bad',volatility.toString());
+  setRule('rule-sync',syncScore>=RULES.minSyncScore?'ok':'bad',syncScore.toString());
+
+  if(!gate.ok){
+    resultEl.className='gate-result red';
+    resultEl.innerHTML='🔴 TRADE BLOCKED<br><small>'+gate.issues.join('<br>')+'</small>';
+  }else if(gate.warns.length){
+    resultEl.className='gate-result yellow';
+    resultEl.innerHTML='🟡 PROCEED WITH CAUTION<br><small>'+gate.warns.join('<br>')+'</small>';
+    submitBtn.style.display='block';
+  }else{
+    resultEl.className='gate-result green';
+    resultEl.innerHTML='🟢 ALL CLEAR — Trade approved for paper execution';
+    submitBtn.style.display='block';
+  }
+
+  if(aiBox){
+    aiBox.style.display='block';
+    aiBox.innerHTML='<div class="ai-loading">🤖 Precision Alpha AI is analyzing this trade...</div>';
+    try{
+      const analysis=await analyzeTradeWithAI(symbol,side,qty,price,confidence,volatility,syncScore,style);
+      let cls='warn';
+      if(analysis.includes('GOOD TRADE'))cls='good';
+      if(analysis.includes('BAD TRADE'))cls='bad';
+      aiBox.innerHTML=`<div class="ai-box ${cls}"><div class="ai-header">🤖 AI Analysis · ${style} Style</div><div class="ai-body">${analysis.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div></div>`;
+    }catch(e){aiBox.innerHTML='<div class="ai-box warn">AI analysis unavailable. Check connection.</div>';}
+  }
+}
+
+async function submitTrade(){
+  const symbol=qs('#tradeSymbol').value.trim().toUpperCase();
+  const side=qs('#tradeAction').value;
+  const qty=parseInt(qs('#tradeQty').value);
+  const orderType=qs('#tradeOrderType').value;
+  const limitPx=qs('#tradeLimitPrice').value;
+  if(!symbol||!qty){toast('Fill in symbol and quantity','warn');return;}
+  if(state.killed){toast('Kill switch is active!','error');return;}
+  const confidence=parseInt(qs('#tradeConfidence').value);
+  const volatility=parseInt(qs('#tradeVolatility').value);
+  const syncScore=parseInt(qs('#tradeSyncScore').value);
+  if(!checkSafetyGate(confidence,volatility,syncScore).ok){toast('Safety gate blocked this trade','error');return;}
+  const order={symbol,qty:qty.toString(),side,type:orderType,time_in_force:'day'};
+  if(orderType==='limit'&&limitPx)order.limit_price=limitPx;
+  try{
+    qs('#submitTradeBtn').textContent='Placing order...';
+    const result=await alpaca('/orders','POST',order);
+    toast(`✅ Paper order placed: ${side.toUpperCase()} ${qty} ${symbol}`,'success');
+    state.weeklyTrades.push({symbol,side,qty,time:new Date().toISOString(),orderId:result.id});
+    localStorage.setItem('pa_weekly_trades',JSON.stringify(state.weeklyTrades));
+    qs('#submitTradeBtn').textContent='⚡ Submit Paper Trade';
+    qs('#tradeGateResult').style.display='none';
+    qs('#submitTradeBtn').style.display='none';
+    qs('#tradeSymbol').value='';
+    setTimeout(loadDashboard,1500);
+  }catch(e){toast('Order failed: '+e.message,'error');qs('#submitTradeBtn').textContent='⚡ Submit Paper Trade';}
+}
+
+// ── TRADE LOG ─────────────────────────────────────────────────────────────────
+async function loadTradeLog(){
+  try{
+    const orders=await alpaca('/orders?status=all&limit=50');
+    if(!orders.length){qs('#tradeLogTable').innerHTML='<p style="color:var(--muted);font-size:13px">No trades yet.</p>';return;}
+    qs('#tradeLogTable').innerHTML=`<table class="tbl"><thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th></tr></thead><tbody>${orders.map(o=>`<tr><td style="font-size:11px;color:var(--muted)">${new Date(o.submitted_at).toLocaleDateString()}</td><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td></tr>`).join('')}</tbody></table>`;
+    const weekStart=new Date();weekStart.setDate(weekStart.getDate()-weekStart.getDay());
+    const wk=orders.filter(o=>new Date(o.submitted_at)>=weekStart);
+    qs('#weeklySummary').innerHTML=`<div class="sum-grid"><div class="sum-item"><span>Trades This Week</span><strong class="neutral">${wk.length} / ${RULES.maxTrades}</strong></div><div class="sum-item"><span>Today P&L</span><strong class="${state.todayPL>=0?'':'loss'}">${fmtMoney(state.todayPL)}</strong></div><div class="sum-item"><span>Daily Limit Left</span><strong class="neutral">${fmtMoney(RULES.maxDailyLoss+state.todayPL)}</strong></div></div>`;
+  }catch(e){qs('#tradeLogTable').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load log.</p>';}
+}
+
+// ── X24/X25/X26/GATE ──────────────────────────────────────────────────────────
+function loadFeed(){const el=qs('#feed');if(!el)return;el.innerHTML=['X24 Autonomous Route Intelligence online.','X25 Volatility Containment Engine active.','X26 Institutional Synchronization Layer aligned.',`Safety rules: $${RULES.maxDailyLoss} daily limit · ${RULES.maxTrades} trades/week · Alpaca paper trading connected.`,'Real-money execution remains disabled.'].map(x=>`<div class="logitem">${x}</div>`).join('');}
+function runConfidence(){const v=Number(qs('#confidenceRange').value);qs('#confidenceValue').textContent=v;let msg='Entry window still valid for paper review.',cls='';if(v<65){msg='Confidence decayed. Use replay/watchlist only.';cls='bad';}else if(v>88){msg='Strong window, but confirmation is still required.';cls='good';}notes('confidenceOutput',[[`Confidence score: ${v}`,cls],[msg,cls],['Live execution remains disabled.','']]);}
+function runRoute(){const type=qs('#routeType').value,c=Number(qs('#routeConfidence').value);qs('#routeConfidenceValue').textContent=c;let d='Route may proceed to paper approval.',cls='';if(type==='Replay Only'){d='Route diverted to replay.';cls='warn';}else if(c<RULES.minConfidence){d=`Confidence below minimum (${c}<${RULES.minConfidence}). Watchlist only.`;cls='bad';}else if(c>90){d='Strong confidence. No chasing — confirmation required.';cls='good';}else{d=`Confidence OK (${c}). Route approved.`;cls='good';}notes('routeOutput',[[`Route type: ${type}`,''],[`Confidence: ${c}`,cls],[d,cls]]);}
+function runContain(){const p=Number(qs('#volPressure').value),mode=qs('#containMode').value;qs('#volPressureValue').textContent=p;let msg='Volatility contained. Trading permitted.',cls='good';if(p>RULES.maxVolatility){msg=`Exceeds limit (${p}>${RULES.maxVolatility}). No new trades.`;cls='bad';}else if(p>60){msg='Elevated. Reduce position size.';cls='warn';}if(mode==='Defense Mode'||mode==='Replay Enforcement'){msg=mode+' active. Block aggressive routing.';cls='bad';}notes('containOutput',[[`Volatility pressure: ${p}`,cls],[`Mode: ${mode}`,''],[msg,cls]]);}
+function runSync(){const pairs=[['timingSync','timingSyncInput'],['riskSync','riskSyncInput'],['replaySync','replaySyncInput'],['routeSync','routeSyncInput']];let total=0;pairs.forEach(([o,i])=>{const v=Number(qs('#'+i).value);qs('#'+o).textContent=v;total+=v;});const score=Math.round(total/4),cls=score>=RULES.minSyncScore?'good':score>=65?'warn':'bad';notes('syncOutput',[[`Score: ${score}`,cls],[score>=RULES.minSyncScore?`Meets minimum (${RULES.minSyncScore}). Approved.`:`Below minimum. Send to replay.`,cls],['Live execution disabled.','']]);}
+function runGate(){const req=qs('#executionRequest').value,safety=qs('#systemSafety').value;let d='APPROVED FOR PAPER WATCH — confirmation required.',cls='good';if(req==='Send to Paper Queue'){d='SENT TO PAPER QUEUE.';cls='good';}if(req==='Replay Before Route'){d='DIVERTED TO REPLAY.';cls='warn';}if(req==='Block Route'){d='BLOCKED BY EXECUTION GATE.';cls='bad';}if(safety==='Elevated Risk'){d='LIMITED — stronger confirmation required.';cls='warn';}if(safety==='Volatility Defense'||safety==='Replay Only'){d='BLOCKED — '+safety.toLowerCase()+' active.';cls='bad';}notes('gateOutput',[[`Request: ${req}`,''],[`Safety: ${safety}`,''],[d,cls],['Real-money execution disabled.','']]);}
+
+// ── REPLAY / JOURNAL ──────────────────────────────────────────────────────────
+function renderReplay(){const items=getStore('x26_replay'),el=qs('#replayLog');if(el)el.innerHTML=items.length?items.map(x=>`<div class="logitem">${x}</div>`).join(''):'<div class="logitem">No replay entries yet.</div>';}
+function renderJournal(){const items=getStore('x26_journal'),el=qs('#journalLog');if(el)el.innerHTML=items.length?items.map(x=>`<div class="logitem">${x}</div>`).join(''):'<div class="logitem">No journal entries yet.</div>';}
+function saveReplay(){const note=qs('#replayNote').value.trim(),result=qs('#replayResult').value;if(!note){toast('Type a replay note first','warn');return;}const items=getStore('x26_replay');items.unshift(`${result}: ${note} — ${new Date().toLocaleString()}`);setStore('x26_replay',items);qs('#replayNote').value='';renderReplay();toast('Replay saved','success');}
+function saveJournal(){const ticker=(qs('#journalTicker').value||'TICKER').toUpperCase(),setup=qs('#journalSetup').value,note=qs('#journalNote').value.trim();if(!note){toast('Type a journal note first','warn');return;}const items=getStore('x26_journal');items.unshift(`${ticker} · ${setup}: ${note} — ${new Date().toLocaleString()}`);setStore('x26_journal',items);qs('#journalTicker').value='';qs('#journalNote').value='';renderJournal();toast('Journal saved','success');}
+
+// ── KILL SWITCH ───────────────────────────────────────────────────────────────
+function activateKill(){
+  if(state.killed){if(confirm('Reactivate trading system?')){state.killed=false;qs('#killBtn').textContent='⛔ KILL SWITCH';qs('#killBtn').style.background='rgba(255,79,79,.1)';qs('#statusDot').className='status-dot';qs('#statusPhase').textContent='X24-X26 • PAPER SAFE';toast('System reactivated','success');}}
+  else{if(confirm('Activate kill switch? This stops all trading immediately.')){state.killed=true;qs('#killBtn').textContent='✅ KILLED — Click to Restart';qs('#killBtn').style.background='rgba(255,79,79,.3)';qs('#statusDot').className='status-dot red';qs('#statusPhase').textContent='KILL SWITCH ACTIVE';toast('⛔ Kill switch activated','error');}}
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();}));
+  qs('#refreshBtn')?.addEventListener('click',loadDashboard);
+  qs('#refreshLog')?.addEventListener('click',loadTradeLog);
+  qs('#checkGateBtn')?.addEventListener('click',checkGate);
+  qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
+  qs('#tradeOrderType')?.addEventListener('change',()=>{qs('#limitPriceGroup').style.display=qs('#tradeOrderType').value==='limit'?'block':'none';});
+  qs('#tradeSymbol')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+  qs('#tradeConfidence')?.addEventListener('input',e=>qs('#tradeConfidenceVal').textContent=e.target.value);
+  qs('#tradeVolatility')?.addEventListener('input',e=>qs('#tradeVolatilityVal').textContent=e.target.value);
+  qs('#tradeSyncScore')?.addEventListener('input',e=>qs('#tradeSyncVal').textContent=e.target.value);
+  qs('#runConfidence')?.addEventListener('click',runConfidence);qs('#confidenceRange')?.addEventListener('input',runConfidence);
+  qs('#runRoute')?.addEventListener('click',runRoute);qs('#routeType')?.addEventListener('change',runRoute);qs('#routeConfidence')?.addEventListener('input',runRoute);
+  qs('#runContain')?.addEventListener('click',runContain);qs('#volPressure')?.addEventListener('input',runContain);qs('#containMode')?.addEventListener('change',runContain);
+  qs('#runSync')?.addEventListener('click',runSync);['timingSyncInput','riskSyncInput','replaySyncInput','routeSyncInput'].forEach(id=>qs('#'+id)?.addEventListener('input',runSync));
+  qs('#runGate')?.addEventListener('click',runGate);qs('#executionRequest')?.addEventListener('change',runGate);qs('#systemSafety')?.addEventListener('change',runGate);
+  qs('#saveReplay')?.addEventListener('click',saveReplay);qs('#clearReplay')?.addEventListener('click',()=>{localStorage.removeItem('x26_replay');renderReplay();});
+  qs('#saveJournal')?.addEventListener('click',saveJournal);
+  qs('#killBtn')?.addEventListener('click',activateKill);
+  loadFeed();runConfidence();runRoute();runContain();runSync();runGate();renderReplay();renderJournal();loadDashboard();
+});
+</script>
+</body>
+</html>
