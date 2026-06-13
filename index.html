@@ -400,10 +400,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
 <div id="toast" class="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script>
-const ALPACA_KEY='PKOKJQWTT4NSZ64VGBN7GLEP6T';
-const ALPACA_SECRET='FonC1S7yhNZEx1p9Auscbs5s6qcTt4U4isjnwearYkad';
-const BASE_URL='https://paper-api.alpaca.markets/v2';
-const DATA_URL='https://data.alpaca.markets/v2';
+const BASE_URL='https://precision-alpha-backend.onrender.com/api';
+const DATA_URL='https://precision-alpha-backend.onrender.com/api';
 const EMAILJS_PUBLIC='i9a72iQL0ChaDHoZL';
 const EMAILJS_SERVICE='service_rucosmz';
 const EMAILJS_TEMPLATE='template_qajvk5t';
@@ -446,8 +444,32 @@ function checkSafetyGate(confidence,volatility,syncScore){const issues=[],warns=
 async function autoScanAndTrade(){if(!isMarketHours()){logAutoEvent('⏰ Outside trading hours — scan skipped');return;}if(state.killed){logAutoEvent('⛔ Kill switch active');return;}if(state.todayPL<=-RULES.maxDailyLoss){logAutoEvent('🔴 Daily loss limit hit');return;}if(state.weeklyTrades.length>=RULES.maxTrades){logAutoEvent(`🔴 Weekly limit reached`);return;}const allSymbols=[...new Set([...state.watchlist,...MARKET_SCAN_LIST])];logAutoEvent(`🔍 Scanning ${allSymbols.length} stocks...`);for(const symbol of allSymbols){if(state.weeklyTrades.length>=RULES.maxTrades)break;try{const tradeData=await getLatestTrade(symbol);const price=tradeData.trade?.p||tradeData.trade?.price||0;const barData=await getBars(symbol);const bars=barData?.bars||[];const priceChange=bars.length>=2?(bars[bars.length-1].c-bars[bars.length-2].c):0;if(price<5||price>150)continue;let aiCheck;try{aiCheck=await quickAICheck(symbol,price,priceChange);}catch(e){continue;}const gate=checkSafetyGate(aiCheck.confidence,aiCheck.volatility,aiCheck.sync);if(!gate.ok){logAutoEvent(`⚫ ${symbol} — blocked`);continue;}const qty=Math.floor(RULES.maxPositionSize/price)||1;logAutoEvent(`✅ ${symbol} — ${aiCheck.side.toUpperCase()} signal. Placing...`);try{const order=await alpaca('/orders','POST',{symbol,qty:qty.toString(),side:aiCheck.side,type:'market',time_in_force:'day'});state.weeklyTrades.push({symbol,side:aiCheck.side,qty,price,time:new Date().toISOString(),auto:true,orderId:order.id});localStorage.setItem('pa_weekly_trades',JSON.stringify(state.weeklyTrades));const logEntry=`${new Date().toLocaleTimeString()} · AUTO: ${aiCheck.side.toUpperCase()} ${qty} ${symbol} @ ${fmtMoney(price)} · ${aiCheck.reason}`;state.autoLog.unshift(logEntry);state.autoLog=state.autoLog.slice(0,50);localStorage.setItem('pa_auto_log',JSON.stringify(state.autoLog));logAutoEvent(`🚀 ORDER: ${aiCheck.side.toUpperCase()} ${qty} ${symbol} @ ${fmtMoney(price)}`);toast(`🤖 Auto: ${aiCheck.side.toUpperCase()} ${qty} ${symbol}`,'success');await sendTradeEmail(symbol,aiCheck.side,qty,price,aiCheck.reason,'AUTO TRADE');renderAutoLog();break;}catch(e){logAutoEvent(`❌ ${symbol} — failed: ${e.message}`);}}catch(e){continue;}await new Promise(r=>setTimeout(r,500));}logAutoEvent('✓ Scan complete — next in 5 min');}
 
 function logAutoEvent(msg){const el=qs('#autoFeed');if(!el)return;const div=document.createElement('div');div.className='logitem';div.textContent=`${new Date().toLocaleTimeString()} — ${msg}`;el.insertBefore(div,el.firstChild);while(el.children.length>30)el.removeChild(el.lastChild);}
-function startAutoEngine(){if(state.autoRunning)return;state.autoRunning=true;const btn=qs('#autoStartBtn');if(btn){btn.textContent='⏹ Stop Auto Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}const dot=qs('#autoDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}const status=qs('#autoStatus');if(status)status.textContent='AUTO ENGINE RUNNING — scanning every 5 minutes';logAutoEvent('🚀 Auto engine started');autoScanAndTrade();state.autoInterval=setInterval(autoScanAndTrade,5*60*1000);toast('🤖 Auto engine started','success');}
-function stopAutoEngine(){state.autoRunning=false;if(state.autoInterval){clearInterval(state.autoInterval);state.autoInterval=null;}const btn=qs('#autoStartBtn');if(btn){btn.textContent='▶ Start Auto Engine';btn.style.background='linear-gradient(180deg,#f2bf4b,#c88d1f)';btn.style.color='#111';btn.style.border='none';}const dot=qs('#autoDot');if(dot){dot.style.background='#a8b0bd';dot.style.boxShadow='none';}const status=qs('#autoStatus');if(status)status.textContent='AUTO ENGINE STOPPED';logAutoEvent('⏹ Auto engine stopped');toast('Auto engine stopped','warn');}
+async function startAutoEngine(){
+  try{
+    const res=await fetch('https://precision-alpha-backend.onrender.com/api/engine/start',{method:'POST'});
+    const data=await res.json();
+    if(data.status==='running'){
+      state.autoRunning=true;
+      const btn=qs('#autoStartBtn');
+      if(btn){btn.textContent='⏹ Stop Auto Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}
+      const dot=qs('#autoDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}
+      const status=qs('#autoStatus');if(status)status.textContent='AUTO ENGINE RUNNING ON SERVER — scanning every 5 minutes';
+      toast('🤖 Auto engine started on server — runs 24/7!','success');
+      startPollingStatus();
+    }
+  }catch(e){toast('Failed to start engine: '+e.message,'error');}
+}
+async function stopAutoEngine(){
+  try{
+    await fetch('https://precision-alpha-backend.onrender.com/api/engine/stop',{method:'POST'});
+    state.autoRunning=false;
+    const btn=qs('#autoStartBtn');
+    if(btn){btn.textContent='▶ Start Auto Engine';btn.style.background='linear-gradient(180deg,#f2bf4b,#c88d1f)';btn.style.color='#111';btn.style.border='none';}
+    const dot=qs('#autoDot');if(dot){dot.style.background='#a8b0bd';dot.style.boxShadow='none';}
+    const status=qs('#autoStatus');if(status)status.textContent='AUTO ENGINE STOPPED';
+    toast('Auto engine stopped','warn');
+  }catch(e){toast('Failed to stop engine','error');}
+}
 function renderAutoLog(){const el=qs('#autoTradeLog');if(!el)return;el.innerHTML=state.autoLog.length?state.autoLog.map(x=>`<div class="logitem">${x}</div>`).join(''):'<div class="logitem">No auto trades yet.</div>';}
 function renderWatchlist(){const el=qs('#watchlistTags');if(!el)return;el.innerHTML=state.watchlist.map(s=>`<span class="wtag">${s}<button onclick="removeFromWatchlist('${s}')" style="background:none;border:none;color:#ff4f4f;cursor:pointer;margin-left:4px;font-weight:900">×</button></span>`).join('');}
 function addToWatchlist(){const input=qs('#watchlistInput');const sym=(input?.value||'').trim().toUpperCase();if(!sym){toast('Enter a symbol','warn');return;}if(state.watchlist.includes(sym)){toast(`${sym} already in watchlist`,'warn');return;}if(state.watchlist.length>=20){toast('Max 20 symbols','warn');return;}state.watchlist.push(sym);localStorage.setItem('pa_watchlist',JSON.stringify(state.watchlist));input.value='';renderWatchlist();toast(`${sym} added`,'success');}
@@ -474,9 +496,73 @@ function renderReplay(){const items=getStore('x26_replay'),el=qs('#replayLog');i
 function renderJournal(){const items=getStore('x26_journal'),el=qs('#journalLog');if(el)el.innerHTML=items.length?items.map(x=>`<div class="logitem">${x}</div>`).join(''):'<div class="logitem">No entries yet.</div>';}
 function saveReplay(){const note=qs('#replayNote').value.trim(),result=qs('#replayResult').value;if(!note){toast('Type a note first','warn');return;}const items=getStore('x26_replay');items.unshift(`${result}: ${note} — ${new Date().toLocaleString()}`);setStore('x26_replay',items);qs('#replayNote').value='';renderReplay();toast('Saved','success');}
 function saveJournal(){const ticker=(qs('#journalTicker').value||'TICKER').toUpperCase(),setup=qs('#journalSetup').value,note=qs('#journalNote').value.trim();if(!note){toast('Type a note first','warn');return;}const items=getStore('x26_journal');items.unshift(`${ticker} · ${setup}: ${note} — ${new Date().toLocaleString()}`);setStore('x26_journal',items);qs('#journalTicker').value='';qs('#journalNote').value='';renderJournal();toast('Saved','success');}
-function activateKill(){if(state.autoRunning)stopAutoEngine();if(state.killed){if(confirm('Reactivate?')){state.killed=false;qs('#killBtn').textContent='⛔ KILL SWITCH';qs('#killBtn').style.background='rgba(255,79,79,.1)';qs('#statusDot').className='status-dot';qs('#statusPhase').textContent='X24-X26 • PAPER SAFE';toast('Reactivated','success');}}else{if(confirm('Activate kill switch? Stops ALL trading.')){state.killed=true;qs('#killBtn').textContent='✅ KILLED — Click to Restart';qs('#killBtn').style.background='rgba(255,79,79,.3)';qs('#statusDot').className='status-dot red';qs('#statusPhase').textContent='KILL SWITCH ACTIVE';toast('⛔ Killed','error');}}}
+async function activateKill(){
+  if(state.killed){
+    if(confirm('Reactivate?')){
+      state.killed=false;
+      qs('#killBtn').textContent='⛔ KILL SWITCH';
+      qs('#killBtn').style.background='rgba(255,79,79,.1)';
+      qs('#statusDot').className='status-dot';
+      qs('#statusPhase').textContent='X24-X26 • PAPER SAFE';
+      toast('Reactivated','success');
+    }
+  }else{
+    if(confirm('Activate kill switch? Stops ALL trading on server AND browser.')){
+      state.killed=true;
+      await fetch('https://precision-alpha-backend.onrender.com/api/engine/kill',{method:'POST'}).catch(()=>{});
+      state.autoRunning=false;
+      qs('#killBtn').textContent='✅ KILLED — Click to Restart';
+      qs('#killBtn').style.background='rgba(255,79,79,.3)';
+      qs('#statusDot').className='status-dot red';
+      qs('#statusPhase').textContent='KILL SWITCH ACTIVE';
+      toast('⛔ Kill switch activated — server trading stopped','error');
+    }
+  }
+}
+
+let statusPollInterval=null;
+async function startPollingStatus(){
+  if(statusPollInterval)clearInterval(statusPollInterval);
+  statusPollInterval=setInterval(async()=>{
+    try{
+      const res=await fetch('https://precision-alpha-backend.onrender.com/api/engine/status');
+      const data=await res.json();
+      // Update scan feed
+      const feed=qs('#autoFeed');
+      if(feed&&data.scan_log&&data.scan_log.length){
+        feed.innerHTML=data.scan_log.map(x=>`<div class="logitem">${x}</div>`).join('');
+      }
+      // Update trade log
+      const tlog=qs('#autoTradeLog');
+      if(tlog&&data.trade_log&&data.trade_log.length){
+        tlog.innerHTML=data.trade_log.map(x=>`<div class="logitem">${x}</div>`).join('');
+      }
+      // Update engine status indicator
+      const status=qs('#autoStatus');
+      if(status){
+        if(data.running){
+          status.textContent='AUTO ENGINE RUNNING ON SERVER — scanning every 5 minutes';
+          const dot=qs('#autoDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}
+          const btn=qs('#autoStartBtn');if(btn&&btn.textContent.includes('Start')){btn.textContent='⏹ Stop Auto Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}
+          state.autoRunning=true;
+        }
+      }
+    }catch(e){console.error('Status poll failed:',e);}
+  },10000);
+}
 
 window.addEventListener('load',()=>{
+  // Check if engine is already running on server
+  fetch('https://precision-alpha-backend.onrender.com/api/engine/status').then(r=>r.json()).then(data=>{
+    if(data.running){
+      state.autoRunning=true;
+      const btn=qs('#autoStartBtn');
+      if(btn){btn.textContent='⏹ Stop Auto Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}
+      const dot=qs('#autoDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}
+      const status=qs('#autoStatus');if(status)status.textContent='AUTO ENGINE RUNNING ON SERVER';
+      startPollingStatus();
+    }
+  }).catch(()=>{});
   emailjs.init(EMAILJS_PUBLIC);
   qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
