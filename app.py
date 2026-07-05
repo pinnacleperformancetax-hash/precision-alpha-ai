@@ -107,7 +107,7 @@ def auto_scan():
             qr = requests.get(f"{ALPACA_DATA_URL}/stocks/{symbol}/trades/latest", headers=alpaca_hdrs(), timeout=10)
             if not qr.ok: continue
             price = qr.json().get('trade', {}).get('p', 0)
-            if not price or price < 5 or price > 150: continue
+            if not price or price < 5 or price > 500: continue
 
             end = datetime.utcnow().isoformat() + 'Z'
             start = (datetime.utcnow() - timedelta(days=3)).isoformat() + 'Z'
