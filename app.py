@@ -25,8 +25,7 @@ MARKET_SCAN_LIST = ['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META','GOOGL'
 RULES = {
     'maxDailyLoss': 50, 'maxTrades': 3, 'maxPositionSize': 200,
     'maxLossPerTrade': 15, 'takeProfitTarget': 30,
-    'minConfidence': 75, 'maxVolatility': 70, 'minSyncScore': 75,
-}
+    'minConfidence': 65, 'maxVolatility': 80, 'minSyncScore': 65,}
 
 engine_state = {
     'running': False, 'weekly_trades': [], 'today_pl': 0.0,
