@@ -83,7 +83,7 @@ def quick_ai_check(symbol, price, price_change):
     prompt = f"""Precision Alpha AI auto-scanner. Evaluate for paper trade.
 Stock: {symbol} | Price: ${price:.2f} | 1-day change: ${price_change:.2f} ({(price_change/max(price,1)*100):.1f}%)
 Respond ONLY with JSON (no markdown): {{"confidence":0-100,"volatility":0-100,"sync":0-100,"side":"buy" or "sell","reason":"one sentence"}}
-Be conservative. confidence>75, volatility<70, sync>75 required."""
+Be moderately aggressive. confidence>65, volatility<80, sync>65 required."""
     res = requests.post("https://api.anthropic.com/v1/messages",
         headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
         json={"model": "claude-haiku-4-5-20251001", "max_tokens": 150, "messages": [{"role": "user", "content": prompt}]},
