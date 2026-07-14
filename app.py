@@ -25,7 +25,8 @@ MARKET_SCAN_LIST = ['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META','GOOGL'
 RULES = {
     'maxDailyLoss': 50, 'maxTrades': 3, 'maxPositionSize': 200,
     'maxLossPerTrade': 15, 'takeProfitTarget': 30,
-    'minConfidence': 65, 'maxVolatility': 80, 'minSyncScore': 65,}
+    'minConfidence': 65, 'maxVolatility': 80, 'minSyncScore': 65,
+}
 
 engine_state = {
     'running': False, 'weekly_trades': [], 'today_pl': 0.0,
@@ -236,6 +237,11 @@ def ai_analyze():
             timeout=25)
         return jsonify(res.json()), res.status_code
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+# Auto-start engine when gunicorn loads
+engine_state['running'] = True
+threading.Thread(target=engine_loop, daemon=True).start()
+log_scan("🚀 Auto engine started on server boot")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
