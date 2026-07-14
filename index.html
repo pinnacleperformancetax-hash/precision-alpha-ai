@@ -110,6 +110,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
   <button class="nav active" data-view="environment">Environment</button>
   <button class="nav" data-view="trade">Place Trade</button>
   <button class="nav" data-view="auto">🤖 Auto Engine</button>
+  <button class="nav" data-view="congress">🏛️ Congress Engine</button>
   <button class="nav" data-view="replay">Replay Lab</button>
   <button class="nav" data-view="mistakes">Mistake Tags</button>
   <button class="nav" data-view="confidence">Confidence Decay</button>
@@ -395,6 +396,47 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div id="weeklySummary"><p style="color:var(--muted);font-size:13px">Loading...</p></div>
     </div>
   </section>
+
+  <section id="congress" class="view">
+    <h2>🏛️ Congressional Copy Engine</h2>
+    <div class="grid2">
+      <div class="panel">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div id="congressDot" style="width:10px;height:10px;border-radius:50%;background:#a8b0bd;flex-shrink:0"></div>
+          <strong id="congressStatus" style="font-size:13px;color:var(--muted)">CONGRESS ENGINE STOPPED</strong>
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.6">Monitors congressional stock trades from Capitol Trades and automatically copies BUY trades on your paper account. Runs once per day during market hours.</p>
+        <div style="background:#070a0f;border:1px solid #202838;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--muted)">Data source</span><strong>Capitol Trades</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--muted)">Scan frequency</span><strong>Every hour</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--muted)">Max copies/day</span><strong>3 trades</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Copied today</span><strong id="congressCopiedToday">0</strong></div>
+        </div>
+        <button id="congressStartBtn" class="gold" style="width:100%;margin-bottom:8px">▶ Start Congress Engine</button>
+        <button id="congressScanBtn" class="dark" style="width:100%;margin-bottom:8px">🔍 Force Scan Now</button>
+        <p style="color:#ff4f4f;font-size:11px;text-align:center;margin:0">⚠️ Paper trading only. Copies congressional BUY trades only.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-title">📋 HOW IT WORKS</div>
+        <div class="notes">
+          <div class="note good">✅ Fetches latest trades from Capitol Trades daily</div>
+          <div class="note good">✅ Copies congressional BUY orders to your paper account</div>
+          <div class="note warn">⚠️ Congressional trades are disclosed up to 45 days late</div>
+          <div class="note warn">⚠️ Past performance doesn't guarantee future results</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📡 CONGRESS SCAN FEED</div>
+      <div id="congressFeed" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
+        <div class="logitem">Congress engine not started yet.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🏛️ COPIED TRADES LOG</div>
+      <div id="congressTradeLog"><div class="logitem">No congressional trades copied yet.</div></div>
+    </div>
+  </section>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -520,6 +562,56 @@ async function activateKill(){
   }
 }
 
+
+async function startCongressEngine() {
+  try {
+    const res = await fetch('https://precision-alpha-backend-hs6g.onrender.com/api/congress/start', {method:'POST'});
+    const data = await res.json();
+    if(data.status==='running') {
+      const btn=qs('#congressStartBtn');
+      if(btn){btn.textContent='⏹ Stop Congress Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}
+      const dot=qs('#congressDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}
+      const status=qs('#congressStatus');if(status)status.textContent='CONGRESS ENGINE RUNNING';
+      toast('🏛️ Congress engine started!','success');
+      loadCongressStatus();
+    }
+  } catch(e){toast('Failed to start congress engine','error');}
+}
+
+async function stopCongressEngine() {
+  try {
+    await fetch('https://precision-alpha-backend-hs6g.onrender.com/api/congress/stop', {method:'POST'});
+    const btn=qs('#congressStartBtn');
+    if(btn){btn.textContent='▶ Start Congress Engine';btn.style.background='linear-gradient(180deg,#f2bf4b,#c88d1f)';btn.style.color='#111';btn.style.border='none';}
+    const dot=qs('#congressDot');if(dot){dot.style.background='#a8b0bd';dot.style.boxShadow='none';}
+    const status=qs('#congressStatus');if(status)status.textContent='CONGRESS ENGINE STOPPED';
+    toast('Congress engine stopped','warn');
+  } catch(e){toast('Failed to stop','error');}
+}
+
+async function loadCongressStatus() {
+  try {
+    const res = await fetch('https://precision-alpha-backend-hs6g.onrender.com/api/congress/status');
+    const data = await res.json();
+    const feed=qs('#congressFeed');
+    if(feed&&data.scan_log&&data.scan_log.length){
+      feed.innerHTML=data.scan_log.map(x=>`<div class="logitem">${x}</div>`).join('');
+    }
+    const tlog=qs('#congressTradeLog');
+    if(tlog){
+      tlog.innerHTML=data.trade_log&&data.trade_log.length?data.trade_log.map(x=>`<div class="logitem">${x}</div>`).join(''):'<div class="logitem">No congressional trades copied yet.</div>';
+    }
+    const copied=qs('#congressCopiedToday');if(copied)copied.textContent=data.copied_today||0;
+    if(data.running){
+      const dot=qs('#congressDot');if(dot){dot.style.background='#67ff74';dot.style.boxShadow='0 0 8px #67ff74';}
+      const status=qs('#congressStatus');if(status)status.textContent='CONGRESS ENGINE RUNNING';
+      const btn=qs('#congressStartBtn');if(btn&&btn.textContent.includes('Start')){btn.textContent='⏹ Stop Congress Engine';btn.style.background='rgba(255,79,79,.2)';btn.style.color='#ff4f4f';btn.style.border='1px solid rgba(255,79,79,.4)';}
+    }
+  } catch(e){console.error('Congress status failed:',e);}
+}
+
+let congressRunning = false;
+
 let statusPollInterval=null;
 async function startPollingStatus(){
   if(statusPollInterval)clearInterval(statusPollInterval);
@@ -563,8 +655,10 @@ window.addEventListener('load',()=>{
       startPollingStatus();
     }
   }).catch(()=>{});
+  // Check congress engine status
+  loadCongressStatus();
   emailjs.init(EMAILJS_PUBLIC);
-  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}}));
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
@@ -583,6 +677,8 @@ window.addEventListener('load',()=>{
   qs('#saveJournal')?.addEventListener('click',saveJournal);
   qs('#killBtn')?.addEventListener('click',activateKill);
   qs('#autoStartBtn')?.addEventListener('click',()=>{state.autoRunning?stopAutoEngine():startAutoEngine();});
+  qs('#congressStartBtn')?.addEventListener('click',()=>{const btn=qs('#congressStartBtn');btn.textContent.includes('Stop')?stopCongressEngine():startCongressEngine();});
+  qs('#congressScanBtn')?.addEventListener('click',()=>{fetch('https://precision-alpha-backend-hs6g.onrender.com/api/congress/scan',{method:'POST'}).then(()=>{toast('Scanning now...','success');setTimeout(loadCongressStatus,3000);});});
   qs('#watchlistInput')?.addEventListener('keydown',e=>{if(e.key==='Enter')addToWatchlist();});
   loadFeed();runConfidence();runRoute();runContain();runSync();runGate();renderReplay();renderJournal();loadDashboard();
 });
