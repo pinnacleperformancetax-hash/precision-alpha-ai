@@ -142,13 +142,13 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
     <h2>Environment</h2>
     <div class="statgrid">
       <div class="stat"><span>Account Value</span><strong id="dashBal">--</strong><small>Paper trading balance</small></div>
-      <div class="stat"><span>Today P&L</span><strong id="dashPL">$0.00</strong><small>Daily limit: $50.00</small></div>
+      <div class="stat"><span>Today P&L</span><strong id="dashPL">$0.00</strong><small>Daily limit: $30.00</small></div>
       <div class="stat"><span>Trades This Week</span><strong id="dashTrades">0 / 10</strong><small>No weekly limit</small></div>
       <div class="stat"><span>System Mode</span><strong>PAPER SAFE</strong><small>Live execution disabled</small></div>
     </div>
     <div class="hero">
       <h3>Institutional execution intelligence suite combining autonomous route intelligence, volatility containment, replay enforcement, execution gates, and synchronization scoring — now connected to Alpaca paper trading.</h3>
-      <p>X24-X26 enforces all safety rules automatically. $50 daily loss limit · 3 trades/week · 9:30am–4pm EST only.</p>
+      <p>X24-X26 enforces all safety rules automatically. $30 daily loss limit · 3 trades/week · 9:30am–4pm EST only.</p>
     </div>
     <div class="grid2">
       <div class="panel">
@@ -451,7 +451,7 @@ const ALERT_EMAIL='pinnacleperformancetax@gmail.com';
 const DEFAULT_WATCHLIST=['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META'];
 const MARKET_SCAN_LIST=['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META','GOOGL','AMZN','NFLX','SOFI','PLTR','RIVN','COIN'];
 
-const RULES={maxDailyLoss:50,maxTrades:9999,maxPositionSize:200,maxLossPerTrade:15,takeProfitTarget:30,minConfidence:30,maxVolatility:90,minSyncScore:30,tradeStartHour:9,tradeStartMinute:30,tradeEndHour:16,tradeEndMinute:0};
+const RULES={maxDailyLoss:30,maxTrades:9999,maxPositionSize:200,maxLossPerTrade:15,takeProfitTarget:30,minConfidence:30,maxVolatility:90,minSyncScore:30,tradeStartHour:9,tradeStartMinute:30,tradeEndHour:16,tradeEndMinute:0};
 
 let state={killed:false,autoRunning:false,autoInterval:null,weeklyTrades:JSON.parse(localStorage.getItem('pa_weekly_trades')||'[]'),todayPL:parseFloat(localStorage.getItem('pa_today_pl')||'0'),watchlist:JSON.parse(localStorage.getItem('pa_watchlist')||JSON.stringify(DEFAULT_WATCHLIST)),autoLog:JSON.parse(localStorage.getItem('pa_auto_log')||'[]')};
 
