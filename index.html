@@ -673,14 +673,11 @@ let congressRunning = false;
 // Benchmark Dashboard
 const BM_STORAGE_KEY = 'precision_alpha_benchmark';
 
-function getBmData() {
-  try { return JSON.parse(localStorage.getItem(BM_STORAGE_KEY)) || {realValue: 0, history: []}; }
-  catch { return {realValue: 0, history: []}; }
-}
+// Use in-memory storage since localStorage may not be available
+let _bmData = {realValue: 0, history: []};
 
-function saveBmData(data) {
-  try { localStorage.setItem(BM_STORAGE_KEY, JSON.stringify(data)); } catch {}
-}
+function getBmData() { return _bmData; }
+function saveBmData(data) { _bmData = data; }
 
 function updateRealPortfolio() {
   const input = qs('#bmRealInput');
