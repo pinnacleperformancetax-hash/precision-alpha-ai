@@ -111,6 +111,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
   <button class="nav" data-view="trade">Place Trade</button>
   <button class="nav" data-view="auto">🤖 Auto Engine</button>
   <button class="nav" data-view="congress">🏛️ Congress Engine</button>
+  <button class="nav" data-view="benchmark">📊 Benchmark</button>
   <button class="nav" data-view="replay">Replay Lab</button>
   <button class="nav" data-view="mistakes">Mistake Tags</button>
   <button class="nav" data-view="confidence">Confidence Decay</button>
@@ -437,6 +438,62 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div id="congressTradeLog"><div class="logitem">No congressional trades copied yet.</div></div>
     </div>
   </section>
+
+  <section id="benchmark" class="view">
+    <h2>📊 Real vs Paper Benchmark</h2>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">🤖 PAPER TRADING (Precision Alpha AI)</div>
+        <div style="font-size:28px;font-weight:700;color:#67ff74;margin:10px 0" id="bmPaperBalance">--</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Paper Account Value</div>
+        <div style="font-size:18px;font-weight:600" id="bmPaperPL">--</div>
+        <div style="font-size:12px;color:var(--muted)">Total P&L from $100,000</div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">💼 REAL PORTFOLIO</div>
+        <div style="font-size:28px;font-weight:700;color:#f2bf4b;margin:10px 0" id="bmRealBalance">--</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Real Account Value</div>
+        <div style="font-size:18px;font-weight:600" id="bmRealPL">--</div>
+        <div style="font-size:12px;color:var(--muted)">Total P&L</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📈 PERFORMANCE COMPARISON</div>
+      <div style="display:flex;gap:20px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px;background:#070a0f;border:1px solid #202838;border-radius:10px;padding:14px;text-align:center">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:6px">Paper Return</div>
+          <div style="font-size:22px;font-weight:700;color:#67ff74" id="bmPaperReturn">--</div>
+        </div>
+        <div style="flex:1;min-width:140px;background:#070a0f;border:1px solid #202838;border-radius:10px;padding:14px;text-align:center">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:6px">Real Return</div>
+          <div style="font-size:22px;font-weight:700;color:#f2bf4b" id="bmRealReturn">--</div>
+        </div>
+        <div style="flex:1;min-width:140px;background:#070a0f;border:1px solid #202838;border-radius:10px;padding:14px;text-align:center">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:6px">Winner</div>
+          <div style="font-size:22px;font-weight:700" id="bmWinner">--</div>
+        </div>
+      </div>
+      <div class="notes" style="margin-top:10px">
+        <div class="note good">✅ Paper trading started at $100,000</div>
+        <div class="note warn">⚠️ Real portfolio comparison is manually entered</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📝 UPDATE REAL PORTFOLIO VALUE</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="bmRealInput" type="number" placeholder="Enter real portfolio value e.g. 5250.00" 
+          style="flex:1;min-width:200px;background:#070a0f;border:1px solid #202838;border-radius:8px;padding:10px 14px;color:#e8eaf0;font-size:14px;outline:none"/>
+        <button class="gold" onclick="updateRealPortfolio()" style="white-space:nowrap">Update Value</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Enter your total real brokerage account value to compare performance</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📅 BENCHMARK HISTORY</div>
+      <div id="bmHistory" style="max-height:300px;overflow-y:auto">
+        <div class="logitem">No history yet — update your real portfolio value to start tracking.</div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -612,6 +669,110 @@ async function loadCongressStatus() {
 
 let congressRunning = false;
 
+
+// Benchmark Dashboard
+const BM_STORAGE_KEY = 'precision_alpha_benchmark';
+
+function getBmData() {
+  try { return JSON.parse(localStorage.getItem(BM_STORAGE_KEY)) || {realValue: 0, history: []}; }
+  catch { return {realValue: 0, history: []}; }
+}
+
+function saveBmData(data) {
+  try { localStorage.setItem(BM_STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+function updateRealPortfolio() {
+  const input = qs('#bmRealInput');
+  const val = parseFloat(input?.value);
+  if (!val || val < 0) { toast('Enter a valid portfolio value', 'error'); return; }
+  const data = getBmData();
+  data.realValue = val;
+  data.history = data.history || [];
+  data.history.unshift({
+    date: new Date().toLocaleDateString(),
+    time: new Date().toLocaleTimeString(),
+    realValue: val
+  });
+  data.history = data.history.slice(0, 30);
+  saveBmData(data);
+  toast('Real portfolio updated!', 'success');
+  if(input) input.value = '';
+  loadBenchmark();
+}
+
+async function loadBenchmark() {
+  try {
+    const res = await fetch(BACKEND + '/api/account');
+    const data = await res.json();
+    const paperBalance = parseFloat(data.portfolio_value || data.equity || 100000);
+    const paperPL = paperBalance - 100000;
+    const paperReturn = ((paperPL / 100000) * 100).toFixed(2);
+
+    const el = qs('#bmPaperBalance');
+    if(el) el.textContent = '$' + paperBalance.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    
+    const plEl = qs('#bmPaperPL');
+    if(plEl) {
+      plEl.textContent = (paperPL >= 0 ? '+' : '') + '$' + paperPL.toFixed(2);
+      plEl.style.color = paperPL >= 0 ? '#67ff74' : '#ff4f4f';
+    }
+    
+    const retEl = qs('#bmPaperReturn');
+    if(retEl) {
+      retEl.textContent = (paperReturn >= 0 ? '+' : '') + paperReturn + '%';
+      retEl.style.color = paperReturn >= 0 ? '#67ff74' : '#ff4f4f';
+    }
+
+    const bmData = getBmData();
+    const realValue = bmData.realValue || 0;
+    
+    const realEl = qs('#bmRealBalance');
+    if(realEl) realEl.textContent = realValue > 0 ? '$' + realValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'Not set';
+
+    // For real return we need starting value — use first history entry
+    const history = bmData.history || [];
+    let realPL = 0;
+    let realReturn = 0;
+    if(history.length > 0) {
+      const startVal = history[history.length-1].realValue;
+      realPL = realValue - startVal;
+      realReturn = ((realPL / startVal) * 100).toFixed(2);
+    }
+
+    const realPlEl = qs('#bmRealPL');
+    if(realPlEl) {
+      realPlEl.textContent = realValue > 0 ? (realPL >= 0 ? '+' : '') + '$' + realPL.toFixed(2) : 'Enter value below';
+      realPlEl.style.color = realPL >= 0 ? '#f2bf4b' : '#ff4f4f';
+    }
+
+    const realRetEl = qs('#bmRealReturn');
+    if(realRetEl) {
+      realRetEl.textContent = realValue > 0 ? (realReturn >= 0 ? '+' : '') + realReturn + '%' : '--';
+      realRetEl.style.color = parseFloat(realReturn) >= 0 ? '#f2bf4b' : '#ff4f4f';
+    }
+
+    const winnerEl = qs('#bmWinner');
+    if(winnerEl && realValue > 0) {
+      if(parseFloat(paperReturn) > parseFloat(realReturn)) {
+        winnerEl.textContent = '🤖 Paper';
+        winnerEl.style.color = '#67ff74';
+      } else {
+        winnerEl.textContent = '💼 Real';
+        winnerEl.style.color = '#f2bf4b';
+      }
+    }
+
+    // History
+    const histEl = qs('#bmHistory');
+    if(histEl && history.length > 0) {
+      histEl.innerHTML = history.map(h => 
+        `<div class="logitem">${h.date} ${h.time} — Real: $${h.realValue.toLocaleString()}</div>`
+      ).join('');
+    }
+  } catch(e) { console.error('Benchmark load error:', e); }
+}
+
 let statusPollInterval=null;
 async function startPollingStatus(){
   if(statusPollInterval)clearInterval(statusPollInterval);
@@ -658,7 +819,7 @@ window.addEventListener('load',()=>{
   // Check congress engine status
   loadCongressStatus();
   emailjs.init(EMAILJS_PUBLIC);
-  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}}));
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}if(b.dataset.view==='benchmark'){loadBenchmark();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
