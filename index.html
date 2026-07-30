@@ -673,29 +673,22 @@ let congressRunning = false;
 // Benchmark Dashboard
 const BM_STORAGE_KEY = 'precision_alpha_benchmark';
 
-// Use in-memory storage since localStorage may not be available
-let _bmData = {realValue: 0, history: []};
+const BM_API = 'https://precision-alpha-backend-hs6g.onrender.com';
 
-function getBmData() { return _bmData; }
-function saveBmData(data) { _bmData = data; }
-
-function updateRealPortfolio() {
+async function updateRealPortfolio() {
   const input = qs('#bmRealInput');
   const val = parseFloat(input?.value);
   if (!val || val < 0) { toast('Enter a valid portfolio value', 'error'); return; }
-  const data = getBmData();
-  data.realValue = val;
-  data.history = data.history || [];
-  data.history.unshift({
-    date: new Date().toLocaleDateString(),
-    time: new Date().toLocaleTimeString(),
-    realValue: val
-  });
-  data.history = data.history.slice(0, 30);
-  saveBmData(data);
-  toast('Real portfolio updated!', 'success');
-  if(input) input.value = '';
-  loadBenchmark();
+  try {
+    await fetch(BM_API + '/api/benchmark/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({real_value: val})
+    });
+    toast('Real portfolio updated!', 'success');
+    if(input) input.value = '';
+    loadBenchmark();
+  } catch(e) { toast('Failed to save', 'error'); }
 }
 
 async function loadBenchmark() {
@@ -721,18 +714,19 @@ async function loadBenchmark() {
       retEl.style.color = paperReturn >= 0 ? '#67ff74' : '#ff4f4f';
     }
 
-    const bmData = getBmData();
-    const realValue = bmData.realValue || 0;
-    
+    // Fetch real portfolio data from backend
+    const bmRes = await fetch(BM_API + '/api/benchmark/get');
+    const bmData = await bmRes.json();
+    const realValue = bmData.real_value || 0;
+    const history = bmData.history || [];
+
     const realEl = qs('#bmRealBalance');
     if(realEl) realEl.textContent = realValue > 0 ? '$' + realValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'Not set';
 
-    // For real return we need starting value — use first history entry
-    const history = bmData.history || [];
     let realPL = 0;
     let realReturn = 0;
     if(history.length > 0) {
-      const startVal = history[history.length-1].realValue;
+      const startVal = history[history.length-1].real_value;
       realPL = realValue - startVal;
       realReturn = ((realPL / startVal) * 100).toFixed(2);
     }
@@ -752,19 +746,16 @@ async function loadBenchmark() {
     const winnerEl = qs('#bmWinner');
     if(winnerEl && realValue > 0) {
       if(parseFloat(paperReturn) > parseFloat(realReturn)) {
-        winnerEl.textContent = '🤖 Paper';
-        winnerEl.style.color = '#67ff74';
+        winnerEl.textContent = '🤖 Paper'; winnerEl.style.color = '#67ff74';
       } else {
-        winnerEl.textContent = '💼 Real';
-        winnerEl.style.color = '#f2bf4b';
+        winnerEl.textContent = '💼 Real'; winnerEl.style.color = '#f2bf4b';
       }
     }
 
-    // History
     const histEl = qs('#bmHistory');
     if(histEl && history.length > 0) {
       histEl.innerHTML = history.map(h => 
-        `<div class="logitem">${h.date} ${h.time} — Real: $${h.realValue.toLocaleString()}</div>`
+        `<div class="logitem">${h.date} ${h.time} — Real: $${parseFloat(h.real_value).toLocaleString()}</div>`
       ).join('');
     }
   } catch(e) { console.error('Benchmark load error:', e); }
