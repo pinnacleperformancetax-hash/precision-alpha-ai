@@ -2,30 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <!-- PWA Meta Tags -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Precision Alpha">
-  <meta name="theme-color" content="#070a0f">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <!-- App Icons -->
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23070a0f'/><text y='.9em' font-size='80' x='10'>📈</text></svg>">
   <title>Precision Alpha AI X24-X26</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-
-  /* PWA Splash Screen */
-  #splash {
-    position:fixed;inset:0;background:#070a0f;z-index:9999;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    transition:opacity 0.5s ease;
-  }
-  #splash.hide{opacity:0;pointer-events:none;}
-  #splash h1{font-size:32px;font-weight:800;color:#f2bf4b;margin:16px 0 8px;}
-  #splash p{color:#a8b0bd;font-size:14px;}
-  #splash .logo{font-size:80px;margin-bottom:8px;}
-
 *{box-sizing:border-box}
 :root{--bg:#05070b;--panel:#0d1117;--panel2:#10151d;--line:#202838;--text:#f7f7f7;--muted:#a8b0bd;--gold:#d4a22f;--green:#67ff74;--red:#ff4f4f;--yellow:#ffd600}
 body{margin:0;background:radial-gradient(circle at top right,#151922 0,#05070b 48%,#020305 100%);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif;display:flex;min-height:100vh}
@@ -132,6 +111,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
   <button class="nav" data-view="trade">Place Trade</button>
   <button class="nav" data-view="auto">🤖 Auto Engine</button>
   <button class="nav" data-view="congress">🏛️ Congress Engine</button>
+  <button class="nav" data-view="settings">⚙️ Settings</button>
+  <button class="nav" data-view="manualtrade">📈 Manual Trade</button>
   <button class="nav" data-view="benchmark">📊 Benchmark</button>
   <button class="nav" data-view="replay">Replay Lab</button>
   <button class="nav" data-view="mistakes">Mistake Tags</button>
@@ -515,6 +496,129 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       </div>
     </div>
   </section>
+
+  <section id="settings" class="view">
+    <h2>⚙️ Trading Settings</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Changes apply instantly — no code editing needed!</p>
+    <div class="panel">
+      <div class="panel-title">🛡️ RISK MANAGEMENT</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Stop Loss Per Share ($)</div>
+            <div style="font-size:12px;color:var(--muted)">Sell when any share loses this amount</div>
+          </div>
+          <input id="set_maxLossPerTrade" type="number" step="0.5" min="1" max="50"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Take Profit (%)</div>
+            <div style="font-size:12px;color:var(--muted)">Sell when position gains this percentage</div>
+          </div>
+          <input id="set_takeProfitPct" type="number" step="1" min="1" max="100"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Daily Loss Limit ($)</div>
+            <div style="font-size:12px;color:var(--muted)">Stop all buying after this total daily loss</div>
+          </div>
+          <input id="set_maxDailyLoss" type="number" step="5" min="10" max="500"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Max Shares Per Stock</div>
+            <div style="font-size:12px;color:var(--muted)">Maximum shares to hold in any single stock</div>
+          </div>
+          <input id="set_maxSharesPerStock" type="number" step="1" min="1" max="50"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Max Position Size ($)</div>
+            <div style="font-size:12px;color:var(--muted)">Max dollar amount per trade</div>
+          </div>
+          <input id="set_maxPositionSize" type="number" step="10" min="50" max="2000"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🤖 AI THRESHOLDS</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Min Confidence Score</div>
+            <div style="font-size:12px;color:var(--muted)">Minimum AI confidence to place trade (0-100)</div>
+          </div>
+          <input id="set_minConfidence" type="number" step="5" min="0" max="100"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Max Volatility</div>
+            <div style="font-size:12px;color:var(--muted)">Skip stocks above this volatility (0-100)</div>
+          </div>
+          <input id="set_maxVolatility" type="number" step="5" min="0" max="100"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Min Sync Score</div>
+            <div style="font-size:12px;color:var(--muted)">Minimum synchronization score (0-100)</div>
+          </div>
+          <input id="set_minSyncScore" type="number" step="5" min="0" max="100"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+      </div>
+    </div>
+    <button class="gold" style="width:100%;margin-top:10px;font-size:16px;padding:14px" onclick="saveSettings()">💾 Save All Settings</button>
+    <div id="settingsStatus" style="text-align:center;margin-top:10px;font-size:13px;color:var(--muted)"></div>
+  </section>
+
+  <section id="manualtrade" class="view">
+    <h2>📈 Manual Trade</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Place buy or sell orders directly without going to Alpaca!</p>
+    <div class="panel">
+      <div class="panel-title">🔍 STOCK LOOKUP</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <input id="mt_symbol" type="text" placeholder="Enter ticker e.g. AAPL"
+          style="flex:1;min-width:150px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:12px 14px;color:#fff;font-size:16px;text-transform:uppercase"/>
+        <button class="dark" onclick="lookupStock()" style="white-space:nowrap">🔍 Look Up</button>
+      </div>
+      <div id="mt_quote" style="background:#070a0f;border:1px solid #202838;border-radius:10px;padding:14px;margin-bottom:16px;display:none">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="color:var(--muted)">Symbol</span><strong id="mt_q_symbol">--</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="color:var(--muted)">Current Price</span><strong id="mt_q_price" style="color:#67ff74">--</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--muted)">Est. Cost (1 share)</span><strong id="mt_q_cost">--</strong>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📋 PLACE ORDER</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;font-weight:600">Quantity</span>
+          <input id="mt_qty" type="number" step="1" min="1" value="1"
+            style="width:100px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:8px 12px;color:#fff;font-size:16px;text-align:center"/>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="gold" style="flex:1;padding:14px;font-size:16px" onclick="placeManualTrade('buy')">🟢 BUY</button>
+          <button style="flex:1;padding:14px;font-size:16px;background:rgba(255,79,79,.2);color:#ff4f4f;border:1px solid rgba(255,79,79,.4);border-radius:10px;cursor:pointer;font-weight:700" onclick="placeManualTrade('sell')">🔴 SELL</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📋 OPEN POSITIONS (Quick Sell)</div>
+      <div id="mt_positions">Loading positions...</div>
+    </div>
+  </section>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -782,6 +886,142 @@ async function loadBenchmark() {
   } catch(e) { console.error('Benchmark load error:', e); }
 }
 
+
+const SETTINGS_API = 'https://precision-alpha-backend-hs6g.onrender.com';
+
+async function loadSettings() {
+  try {
+    const res = await fetch(SETTINGS_API + '/api/settings/get');
+    const data = await res.json();
+    const fields = {
+      maxLossPerTrade: 'set_maxLossPerTrade',
+      takeProfitPct: 'set_takeProfitPct',
+      maxDailyLoss: 'set_maxDailyLoss',
+      maxSharesPerStock: 'set_maxSharesPerStock',
+      maxPositionSize: 'set_maxPositionSize',
+      minConfidence: 'set_minConfidence',
+      maxVolatility: 'set_maxVolatility',
+      minSyncScore: 'set_minSyncScore',
+    };
+    for(const [key, id] of Object.entries(fields)) {
+      const el = document.getElementById(id);
+      if(el && data[key] !== undefined) el.value = data[key];
+    }
+  } catch(e) { console.error('Settings load error:', e); }
+}
+
+async function saveSettings() {
+  const fields = {
+    maxLossPerTrade: 'set_maxLossPerTrade',
+    takeProfitPct: 'set_takeProfitPct',
+    maxDailyLoss: 'set_maxDailyLoss',
+    maxSharesPerStock: 'set_maxSharesPerStock',
+    maxPositionSize: 'set_maxPositionSize',
+    minConfidence: 'set_minConfidence',
+    maxVolatility: 'set_maxVolatility',
+    minSyncScore: 'set_minSyncScore',
+  };
+  const payload = {};
+  for(const [key, id] of Object.entries(fields)) {
+    const el = document.getElementById(id);
+    if(el && el.value) payload[key] = parseFloat(el.value);
+  }
+  try {
+    const res = await fetch(SETTINGS_API + '/api/settings/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    const status = document.getElementById('settingsStatus');
+    if(status) { status.textContent = '✅ Settings saved successfully!'; status.style.color = '#67ff74'; }
+    toast('Settings saved!', 'success');
+  } catch(e) {
+    const status = document.getElementById('settingsStatus');
+    if(status) { status.textContent = '❌ Failed to save settings'; status.style.color = '#ff4f4f'; }
+    toast('Failed to save settings', 'error');
+  }
+}
+
+async function lookupStock() {
+  const symbol = document.getElementById('mt_symbol')?.value?.toUpperCase()?.trim();
+  if(!symbol) { toast('Enter a ticker symbol', 'error'); return; }
+  try {
+    const res = await fetch(SETTINGS_API + '/api/quote/' + symbol);
+    const data = await res.json();
+    const price = data?.trade?.p || 0;
+    const quoteEl = document.getElementById('mt_quote');
+    if(quoteEl) quoteEl.style.display = 'block';
+    const symEl = document.getElementById('mt_q_symbol');
+    if(symEl) symEl.textContent = symbol;
+    const priceEl = document.getElementById('mt_q_price');
+    if(priceEl) priceEl.textContent = '$' + price.toFixed(2);
+    const costEl = document.getElementById('mt_q_cost');
+    if(costEl) costEl.textContent = '$' + price.toFixed(2);
+  } catch(e) { toast('Failed to look up stock', 'error'); }
+}
+
+async function placeManualTrade(side) {
+  const symbol = document.getElementById('mt_symbol')?.value?.toUpperCase()?.trim();
+  const qty = document.getElementById('mt_qty')?.value;
+  if(!symbol) { toast('Enter a ticker symbol', 'error'); return; }
+  if(!qty || qty < 1) { toast('Enter a valid quantity', 'error'); return; }
+  try {
+    const res = await fetch(SETTINGS_API + '/api/orders', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol, qty: String(qty), side, type: 'market', time_in_force: 'day'})
+    });
+    const data = await res.json();
+    if(data.id || data.status) {
+      toast(`✅ ${side.toUpperCase()} ${qty} ${symbol} order placed!`, 'success');
+      loadManualPositions();
+    } else {
+      toast('Order failed: ' + (data.message || 'Unknown error'), 'error');
+    }
+  } catch(e) { toast('Failed to place order', 'error'); }
+}
+
+async function loadManualPositions() {
+  try {
+    const res = await fetch(SETTINGS_API + '/api/positions');
+    const positions = await res.json();
+    const el = document.getElementById('mt_positions');
+    if(!el) return;
+    if(!positions || !positions.length) { el.innerHTML = '<div class="logitem">No open positions</div>'; return; }
+    el.innerHTML = positions.map(p => {
+      const pl = parseFloat(p.unrealized_pl || 0);
+      const qty = parseInt(p.qty || 0);
+      const symbol = p.symbol;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #202838">
+        <div>
+          <strong>${symbol}</strong>
+          <span style="color:var(--muted);font-size:12px;margin-left:8px">${qty} shares</span>
+          <span style="margin-left:8px;font-size:13px;color:${pl>=0?'#67ff74':'#ff4f4f'}">${pl>=0?'+':''}$${pl.toFixed(2)}</span>
+        </div>
+        <button onclick="quickSell('${symbol}',${qty})" style="background:rgba(255,79,79,.2);color:#ff4f4f;border:1px solid rgba(255,79,79,.4);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">SELL ALL</button>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('Positions load error:', e); }
+}
+
+async function quickSell(symbol, qty) {
+  try {
+    const res = await fetch(SETTINGS_API + '/api/orders', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol, qty: String(qty), side: 'sell', type: 'market', time_in_force: 'day'})
+    });
+    const data = await res.json();
+    if(data.id || data.status) {
+      toast(`✅ SELL ${qty} ${symbol} order placed!`, 'success');
+      setTimeout(loadManualPositions, 2000);
+    } else {
+      toast('Order failed: ' + (data.message || 'Unknown error'), 'error');
+    }
+  } catch(e) { toast('Failed to place sell order', 'error'); }
+}
+
 let statusPollInterval=null;
 async function startPollingStatus(){
   if(statusPollInterval)clearInterval(statusPollInterval);
@@ -828,19 +1068,7 @@ window.addEventListener('load',()=>{
   // Check congress engine status
   loadCongressStatus();
   emailjs.init(EMAILJS_PUBLIC);
-
-  // Hide splash screen after load
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      const splash = document.getElementById('splash');
-      if(splash) {
-        splash.classList.add('hide');
-        setTimeout(() => splash.remove(), 500);
-      }
-    }, 1500);
-  });
-
-  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}if(b.dataset.view==='benchmark'){setTimeout(loadBenchmark, 100);}}));
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}if(b.dataset.view==='benchmark'){setTimeout(loadBenchmark, 100);}if(b.dataset.view==='settings'){loadSettings();}if(b.dataset.view==='manualtrade'){loadManualPositions();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
