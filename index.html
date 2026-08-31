@@ -111,6 +111,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
   <button class="nav" data-view="trade">Place Trade</button>
   <button class="nav" data-view="auto">🤖 Auto Engine</button>
   <button class="nav" data-view="congress">🏛️ Congress Engine</button>
+  <button class="nav" data-view="winrate">📊 Win Rate</button>
+  <button class="nav" data-view="news">📰 News Feed</button>
   <button class="nav" data-view="settings">⚙️ Settings</button>
   <button class="nav" data-view="manualtrade">📈 Manual Trade</button>
   <button class="nav" data-view="benchmark">📊 Benchmark</button>
@@ -619,6 +621,64 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div id="mt_positions">Loading positions...</div>
     </div>
   </section>
+
+  <section id="winrate" class="view">
+    <h2>📊 Win Rate Tracker</h2>
+    <div class="grid2">
+      <div class="panel" style="text-align:center">
+        <div style="font-size:48px;font-weight:800;color:#67ff74" id="wr_winrate">--</div>
+        <div style="font-size:14px;color:var(--muted);margin-top:4px">Win Rate</div>
+      </div>
+      <div class="panel" style="text-align:center">
+        <div style="font-size:48px;font-weight:800;color:#f2bf4b" id="wr_rr">--</div>
+        <div style="font-size:14px;color:var(--muted);margin-top:4px">Reward:Risk Ratio</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">📈 TRADE STATS</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total Trades</span><strong id="wr_total">--</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Wins</span><strong id="wr_wins" style="color:#67ff74">--</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Losses</span><strong id="wr_losses" style="color:#ff4f4f">--</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Avg Win</span><strong id="wr_avggain" style="color:#67ff74">--</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Avg Loss</span><strong id="wr_avgloss" style="color:#ff4f4f">--</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total P&L</span><strong id="wr_totalpl">--</strong></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">🎯 PERFORMANCE RATING</div>
+        <div id="wr_rating" style="text-align:center;padding:20px">
+          <div style="font-size:40px;margin-bottom:10px">--</div>
+          <div style="font-size:14px;color:var(--muted)" id="wr_rating_text">Loading...</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📋 RECENT CLOSED TRADES</div>
+      <div id="wr_trades" style="max-height:400px;overflow-y:auto">
+        <div class="logitem">Loading trade history...</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="news" class="view">
+    <h2>📰 Live Market News</h2>
+    <div class="panel">
+      <div class="panel-title">🔍 STOCK NEWS LOOKUP</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <input id="news_symbol" type="text" placeholder="Enter ticker e.g. AAPL"
+          style="flex:1;min-width:150px;background:#0d1117;border:1px solid #404858;border-radius:8px;padding:12px 14px;color:#fff;font-size:16px;text-transform:uppercase"/>
+        <button class="gold" onclick="loadStockNews()" style="white-space:nowrap">🔍 Get News</button>
+      </div>
+      <div id="stock_news"><div class="logitem">Enter a ticker to see latest news</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🌍 MARKET NEWS FEED</div>
+      <button class="dark" onclick="loadMarketNews()" style="margin-bottom:14px;width:100%">🔄 Refresh Market News</button>
+      <div id="market_news"><div class="logitem">Loading market news...</div></div>
+    </div>
+  </section>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -891,8 +951,9 @@ const SETTINGS_API = 'https://precision-alpha-backend-hs6g.onrender.com';
 
 async function loadSettings() {
   try {
-    const res = await fetch(SETTINGS_API + '/api/settings/get');
+    const res = await fetch('https://precision-alpha-backend-hs6g.onrender.com/api/settings/get');
     const data = await res.json();
+    console.log('Settings loaded:', data);
     const fields = {
       maxLossPerTrade: 'set_maxLossPerTrade',
       takeProfitPct: 'set_takeProfitPct',
@@ -905,9 +966,29 @@ async function loadSettings() {
     };
     for(const [key, id] of Object.entries(fields)) {
       const el = document.getElementById(id);
-      if(el && data[key] !== undefined) el.value = data[key];
+      if(el && data[key] !== undefined) {
+        el.value = data[key];
+        console.log('Set', id, '=', data[key]);
+      }
     }
-  } catch(e) { console.error('Settings load error:', e); }
+  } catch(e) { 
+    console.error('Settings load error:', e);
+    // Use defaults if backend fails
+    const defaults = {
+      set_maxLossPerTrade: 9,
+      set_takeProfitPct: 15,
+      set_maxDailyLoss: 30,
+      set_maxSharesPerStock: 5,
+      set_maxPositionSize: 200,
+      set_minConfidence: 30,
+      set_maxVolatility: 90,
+      set_minSyncScore: 30,
+    };
+    for(const [id, val] of Object.entries(defaults)) {
+      const el = document.getElementById(id);
+      if(el) el.value = val;
+    }
+  }
 }
 
 async function saveSettings() {
@@ -1022,6 +1103,100 @@ async function quickSell(symbol, qty) {
   } catch(e) { toast('Failed to place sell order', 'error'); }
 }
 
+
+const WR_API = 'https://precision-alpha-backend-hs6g.onrender.com';
+
+async function loadWinRate() {
+  try {
+    const res = await fetch(WR_API + '/api/trades/history');
+    const data = await res.json();
+    const s = data.stats;
+    
+    const wrEl = document.getElementById('wr_winrate');
+    if(wrEl) { wrEl.textContent = s.win_rate + '%'; wrEl.style.color = s.win_rate >= 50 ? '#67ff74' : '#ff4f4f'; }
+    
+    const rrEl = document.getElementById('wr_rr');
+    if(rrEl) { rrEl.textContent = s.reward_risk + ':1'; rrEl.style.color = s.reward_risk >= 1 ? '#f2bf4b' : '#ff4f4f'; }
+    
+    const ids = {wr_total: s.total_trades, wr_wins: s.wins, wr_losses: s.losses, 
+                 wr_avggain: '+$' + s.avg_gain, wr_avgloss: '-$' + s.avg_loss,
+                 wr_totalpl: (s.total_pl >= 0 ? '+' : '') + '$' + s.total_pl};
+    for(const [id, val] of Object.entries(ids)) {
+      const el = document.getElementById(id);
+      if(el) el.textContent = val;
+    }
+    
+    // Performance rating
+    const ratingEl = document.getElementById('wr_rating');
+    const ratingText = document.getElementById('wr_rating_text');
+    let emoji, text;
+    if(s.win_rate >= 60 && s.reward_risk >= 1.5) { emoji = '🏆'; text = 'Elite Trader'; }
+    else if(s.win_rate >= 50 && s.reward_risk >= 1) { emoji = '✅'; text = 'Profitable Trader'; }
+    else if(s.win_rate >= 40) { emoji = '📈'; text = 'Developing Trader'; }
+    else { emoji = '🔧'; text = 'Needs Improvement'; }
+    if(ratingEl) ratingEl.querySelector('div').textContent = emoji;
+    if(ratingText) ratingText.textContent = text;
+    
+    // Trade list
+    const tradesEl = document.getElementById('wr_trades');
+    if(tradesEl && data.trades && data.trades.length) {
+      tradesEl.innerHTML = data.trades.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #202838;flex-wrap:wrap;gap:6px">
+          <div>
+            <strong>${t.symbol}</strong>
+            <span style="color:var(--muted);font-size:12px;margin-left:8px">${t.date}</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:13px">
+            <span style="color:var(--muted)">Buy: $${t.buy_price}</span>
+            <span style="color:var(--muted)">Sell: $${t.sell_price}</span>
+            <span style="color:${t.win ? '#67ff74' : '#ff4f4f'};font-weight:700">${t.pl >= 0 ? '+' : ''}$${t.pl} (${t.pct >= 0 ? '+' : ''}${t.pct}%)</span>
+            <span style="background:${t.win ? 'rgba(103,255,116,.15)' : 'rgba(255,79,79,.15)'};color:${t.win ? '#67ff74' : '#ff4f4f'};padding:2px 8px;border-radius:4px;font-size:11px">${t.win ? 'WIN' : 'LOSS'}</span>
+          </div>
+        </div>`).join('');
+    } else {
+      if(tradesEl) tradesEl.innerHTML = '<div class="logitem">No closed trades yet</div>';
+    }
+  } catch(e) { console.error('Win rate load error:', e); }
+}
+
+function formatNewsItem(item) {
+  const date = item.created_at ? new Date(item.created_at).toLocaleDateString() : '';
+  return `<div style="padding:12px 0;border-bottom:1px solid #202838">
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px;line-height:1.4">${item.headline || item.title || 'No title'}</div>
+    <div style="display:flex;gap:10px;font-size:12px;color:var(--muted)">
+      <span>${item.source || ''}</span>
+      <span>${date}</span>
+      ${item.symbols ? '<span>' + item.symbols.join(', ') + '</span>' : ''}
+    </div>
+    ${item.summary ? '<div style="font-size:13px;color:#a8b0bd;margin-top:6px;line-height:1.5">' + item.summary.slice(0, 150) + '...</div>' : ''}
+    ${item.url ? '<a href="' + item.url + '" target="_blank" style="font-size:12px;color:#f2bf4b;text-decoration:none;margin-top:4px;display:inline-block">Read more →</a>' : ''}
+  </div>`;
+}
+
+async function loadStockNews() {
+  const symbol = document.getElementById('news_symbol')?.value?.toUpperCase()?.trim();
+  if(!symbol) { toast('Enter a ticker symbol', 'error'); return; }
+  const el = document.getElementById('stock_news');
+  if(el) el.innerHTML = '<div class="logitem">Loading news for ' + symbol + '...</div>';
+  try {
+    const res = await fetch(WR_API + '/api/news/' + symbol);
+    const data = await res.json();
+    const news = data.news || [];
+    if(el) el.innerHTML = news.length ? news.map(formatNewsItem).join('') : '<div class="logitem">No recent news for ' + symbol + '</div>';
+  } catch(e) { if(el) el.innerHTML = '<div class="logitem">Failed to load news</div>'; }
+}
+
+async function loadMarketNews() {
+  const el = document.getElementById('market_news');
+  if(el) el.innerHTML = '<div class="logitem">Loading market news...</div>';
+  try {
+    const res = await fetch(WR_API + '/api/news/market');
+    const data = await res.json();
+    const news = data.news || [];
+    if(el) el.innerHTML = news.length ? news.map(formatNewsItem).join('') : '<div class="logitem">No market news available</div>';
+  } catch(e) { if(el) el.innerHTML = '<div class="logitem">Failed to load news</div>'; }
+}
+
 let statusPollInterval=null;
 async function startPollingStatus(){
   if(statusPollInterval)clearInterval(statusPollInterval);
@@ -1068,7 +1243,7 @@ window.addEventListener('load',()=>{
   // Check congress engine status
   loadCongressStatus();
   emailjs.init(EMAILJS_PUBLIC);
-  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}if(b.dataset.view==='benchmark'){setTimeout(loadBenchmark, 100);}if(b.dataset.view==='settings'){loadSettings();}if(b.dataset.view==='manualtrade'){loadManualPositions();}}));
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();renderAutoLog();}if(b.dataset.view==='congress'){loadCongressStatus();}if(b.dataset.view==='benchmark'){setTimeout(loadBenchmark, 100);}if(b.dataset.view==='settings'){loadSettings();}if(b.dataset.view==='winrate'){loadWinRate();}if(b.dataset.view==='news'){loadMarketNews();}if(b.dataset.view==='manualtrade'){loadManualPositions();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
