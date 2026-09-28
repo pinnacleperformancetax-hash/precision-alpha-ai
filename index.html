@@ -181,7 +181,14 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
 
   <section id="trade" class="view">
     <h2>Place Paper Trade</h2>
-    <div class="grid2">
+    <div class="panel" style="margin-bottom:22px">
+      <div class="panel-title">Asset Type</div>
+      <div style="display:flex;gap:8px">
+        <button class="gold" id="assetTypeStock" style="flex:1" onclick="setAssetType('stock')">📈 Stock</button>
+        <button class="dark" id="assetTypeOption" style="flex:1;margin-left:0" onclick="setAssetType('option')">🎯 Option</button>
+      </div>
+    </div>
+    <div id="stockTradeSection" class="grid2">
       <div class="panel">
         <div class="panel-title">Trade Setup</div>
         <label>Stock Symbol</label>
@@ -224,6 +231,30 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <div id="riskBox"><p style="color:var(--muted);font-size:13px">Set quantity to calculate risk.</p></div>
         </div>
         <div id="aiAnalysisBox" style="display:none"></div>
+      </div>
+    </div>
+    <div id="optionTradeSection" class="grid2" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Browse Option Contracts <span class="hint">(Step 1 — browsing only, no orders yet)</span></div>
+        <label>Underlying Symbol</label>
+        <input type="text" id="optSymbol" placeholder="e.g. AAPL, TSLA, SPY"/>
+        <label>Expiration Date Range</label>
+        <div style="display:flex;gap:8px">
+          <input type="date" id="optExpGte" style="flex:1"/>
+          <input type="date" id="optExpLte" style="flex:1"/>
+        </div>
+        <label>Type</label>
+        <select id="optType">
+          <option value="">Both calls & puts</option>
+          <option value="call">Calls only</option>
+          <option value="put">Puts only</option>
+        </select>
+        <button class="gold" id="browseContractsBtn" style="width:100%">🔍 Browse Contracts</button>
+        <p class="hint" style="margin-top:10px">Your account is approved through Options Level 3 (multi-leg spreads). This step only looks contracts up — placing option orders comes next.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-title">📋 Available Contracts</div>
+        <div id="optContractsList"><p style="color:var(--muted);font-size:13px">Enter a symbol and browse to see contracts.</p></div>
       </div>
     </div>
   </section>
@@ -649,6 +680,39 @@ async function loadDashboard(){
 async function loadPositions(){try{const pos=await backend('/api/positions');if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);const over=RULES.maxSharesPerStock&&parseInt(p.qty)>RULES.maxSharesPerStock;return`<tr><td><strong>${p.symbol}</strong>${over?' <span style="color:var(--red);font-size:11px">⚠ over cap</span>':''}</td><td>${p.qty}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;}catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 async function loadRecentOrders(){try{const orders=await backend('/api/orders?status=all&limit=8');if(!orders.length){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">No orders yet.</p>';return;}qs('#recentOrders').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td><td style="color:var(--muted);font-size:11px">${new Date(o.submitted_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;}catch(e){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 
+// ---- Options: Step 1 (browse contracts only — no order placement yet) ----
+function setAssetType(kind){
+  const stockBtn=qs('#assetTypeStock'),optBtn=qs('#assetTypeOption');
+  const stockSec=qs('#stockTradeSection'),optSec=qs('#optionTradeSection');
+  if(kind==='option'){
+    stockSec.style.display='none';optSec.style.display='grid';
+    optBtn.className='gold';stockBtn.className='dark';
+  }else{
+    optSec.style.display='none';stockSec.style.display='grid';
+    stockBtn.className='gold';optBtn.className='dark';
+  }
+}
+async function browseOptionContracts(){
+  const symbol=qs('#optSymbol').value.trim().toUpperCase();
+  if(!symbol){toast('Enter an underlying symbol first','warn');return;}
+  const listEl=qs('#optContractsList');
+  listEl.innerHTML='<p style="color:var(--muted);font-size:13px">Loading contracts...</p>';
+  try{
+    const params=new URLSearchParams();
+    const expGte=qs('#optExpGte').value,expLte=qs('#optExpLte').value,type=qs('#optType').value;
+    if(expGte)params.set('expiration_date_gte',expGte);
+    if(expLte)params.set('expiration_date_lte',expLte);
+    if(type)params.set('type',type);
+    params.set('limit','100');
+    const data=await backend('/api/options/contracts/'+symbol+'?'+params.toString());
+    const contracts=data.option_contracts||[];
+    if(!contracts.length){listEl.innerHTML='<p style="color:var(--muted);font-size:13px">No contracts found for that symbol/date range.</p>';return;}
+    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
+  }catch(e){
+    listEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Could not load contracts: ${e.message}</p>`;
+  }
+}
+
 async function checkGate(){
   const symbol=qs('#tradeSymbol').value.trim().toUpperCase();
   const confidence=parseInt(qs('#tradeConfidence').value);
@@ -766,6 +830,7 @@ window.addEventListener('load',async()=>{
   qs('#setKeyBtn')?.addEventListener('click',promptForApiKey);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
+  qs('#browseContractsBtn')?.addEventListener('click',browseOptionContracts);
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
   qs('#tradeOrderType')?.addEventListener('change',()=>{qs('#limitPriceGroup').style.display=qs('#tradeOrderType').value==='limit'?'block':'none';});
   qs('#tradeSymbol')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
