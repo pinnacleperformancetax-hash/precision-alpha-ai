@@ -562,7 +562,12 @@ async function getWeeklyOrders(){
 function checkSafetyGate(confidence,volatility,syncScore){
   const issues=[],warns=[];
   if(state.killed)issues.push('⛔ Kill switch is active');
-  if(state.marketOpen===false)issues.push(`Outside trading hours (${fmtHoursLabel()})`);
+  // Market being closed is a WARNING here, not a hard block: Alpaca happily
+  // accepts and queues manual orders after-hours (they fill at the next
+  // open), and this gate previously hid the Submit button entirely whenever
+  // the market was closed, making it impossible to place trades outside
+  // market hours even though the backend and Alpaca both support it.
+  if(state.marketOpen===false)warns.push(`Market is closed (${fmtHoursLabel()}) — order will queue and fill at next open`);
   if(confidence<RULES.minConfidence)issues.push(`Confidence too low (${confidence}<${RULES.minConfidence})`);
   if(volatility>RULES.maxVolatility)issues.push(`Volatility too high (${volatility}>${RULES.maxVolatility})`);
   if(syncScore<RULES.minSyncScore)issues.push(`Sync too low (${syncScore}<${RULES.minSyncScore})`);
