@@ -443,25 +443,44 @@ function getStore(k){return JSON.parse(localStorage.getItem(k)||'[]');}
 function setStore(k,v){localStorage.setItem(k,JSON.stringify(v.slice(0,30)));}
 
 async function backend(path,method='GET',body=null){const url=BACKEND_URL+path;const headers={'Content-Type':'application/json'};if(method!=='GET'&&apiKey)headers['X-API-Key']=apiKey;const opts={method,headers};if(body)opts.body=JSON.stringify(body);const res=await fetch(url,opts);if(res.status===401){toast('Rejected — wrong or missing API key. Reload to re-enter it.','error');throw new Error('unauthorized');}if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}return res.json();}
-// Storage helpers with fallback: some browsers/webviews (notably iOS Safari
-// "Add to Home Screen" apps, and some privacy modes) silently block or wipe
-// sessionStorage on every load. Previously a blocked write failed silently
-// with no fallback, so the key never actually persisted and the prompt kept
-// reappearing every single time even within "the same tab". This tries
-// sessionStorage first, then falls back to localStorage, and never throws.
+// Storage helpers with fallback: some browsers/webviews (notably iOS "Add to
+// Home Screen" standalone web apps, and some privacy modes) silently block or
+// wipe sessionStorage AND localStorage between launches — iOS home-screen
+// web apps run in an isolated container that can be purged more aggressively
+// than regular Safari tabs. A cookie is added as a third fallback since it
+// tends to survive that scenario when both Storage APIs get wiped.
+function cookieGet(name){
+  try{
+    const match=document.cookie.match(new RegExp('(?:^|; )'+name+'=([^;]*)'));
+    return match?decodeURIComponent(match[1]):null;
+  }catch(e){return null;}
+}
+function cookieSet(name,val){
+  try{
+    const oneYear=60*60*24*365;
+    document.cookie=`${name}=${encodeURIComponent(val)}; max-age=${oneYear}; path=/; SameSite=Lax`;
+    return true;
+  }catch(e){return false;}
+}
+function cookieRemove(name){
+  try{document.cookie=`${name}=; max-age=0; path=/`;}catch(e){}
+}
 function safeStorageGet(key){
   try{const v=sessionStorage.getItem(key);if(v)return v;}catch(e){}
-  try{return localStorage.getItem('pa_fallback_'+key);}catch(e){return null;}
+  try{const v=localStorage.getItem('pa_fallback_'+key);if(v)return v;}catch(e){}
+  return cookieGet('pa_fallback_'+key);
 }
 function safeStorageSet(key,val){
   let ok=false;
   try{sessionStorage.setItem(key,val);ok=true;}catch(e){}
   try{localStorage.setItem('pa_fallback_'+key,val);ok=true;}catch(e){}
+  if(cookieSet('pa_fallback_'+key,val))ok=true;
   return ok;
 }
 function safeStorageRemove(key){
   try{sessionStorage.removeItem(key);}catch(e){}
   try{localStorage.removeItem('pa_fallback_'+key);}catch(e){}
+  cookieRemove('pa_fallback_'+key);
 }
 function askForApiKey(){
   const saved=safeStorageGet('pa_session_key');
