@@ -483,6 +483,19 @@ function safeStorageRemove(key){
   cookieRemove('pa_fallback_'+key);
 }
 function askForApiKey(){
+  // iOS "Add to Home Screen" apps are treated as never having been visited in
+  // Safari, so Apple's privacy system (ITP) is allowed to wipe ALL script
+  // storage — sessionStorage, localStorage, even JS-set cookies — after just
+  // a few days idle, sometimes sooner. No storage fallback can outrun that;
+  // it's deliberate OS behavior. The fix: if the key is baked into the URL
+  // itself (?key=...), it travels with the saved home-screen icon and never
+  // depends on storage surviving at all.
+  const urlKey=new URLSearchParams(window.location.search).get('key');
+  if(urlKey){
+    apiKey=urlKey.trim();
+    safeStorageSet('pa_session_key',apiKey); // best-effort, not required
+    return;
+  }
   const saved=safeStorageGet('pa_session_key');
   if(saved){apiKey=saved;return;}
   const entered=prompt('Enter your Precision Alpha API key (leave blank if the backend has no API_KEY set yet):');
