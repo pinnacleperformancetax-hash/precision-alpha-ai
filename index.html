@@ -406,7 +406,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
 <script>
 // NOTE: No Alpaca API keys live in this file. All Alpaca calls go through the
 // backend proxy at BACKEND_URL, which holds the real credentials server-side.
-const BACKEND_URL='https://precision-alpha-backend-hs6g.onrender.com';
+const BACKEND_URL='https://precision-alpha-backend.onrender.com';
 const EMAILJS_PUBLIC='i9a72iQL0ChaDHoZL';
 const EMAILJS_SERVICE='service_rucosmz';
 const EMAILJS_TEMPLATE='template_qajvk5t';
@@ -443,8 +443,45 @@ function getStore(k){return JSON.parse(localStorage.getItem(k)||'[]');}
 function setStore(k,v){localStorage.setItem(k,JSON.stringify(v.slice(0,30)));}
 
 async function backend(path,method='GET',body=null){const url=BACKEND_URL+path;const headers={'Content-Type':'application/json'};if(method!=='GET'&&apiKey)headers['X-API-Key']=apiKey;const opts={method,headers};if(body)opts.body=JSON.stringify(body);const res=await fetch(url,opts);if(res.status===401){toast('Rejected — wrong or missing API key. Reload to re-enter it.','error');throw new Error('unauthorized');}if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}return res.json();}
-function askForApiKey(){const saved=sessionStorage.getItem('pa_session_key');if(saved){apiKey=saved;return;}const entered=prompt('Enter your Precision Alpha API key (leave blank if the backend has no API_KEY set yet):');if(entered){apiKey=entered.trim();sessionStorage.setItem('pa_session_key',apiKey);}}
-function promptForApiKey(){const entered=prompt('Enter your Precision Alpha API key:',apiKey||'');if(entered!==null){apiKey=entered.trim();if(apiKey)sessionStorage.setItem('pa_session_key',apiKey);else sessionStorage.removeItem('pa_session_key');toast('API key updated for this session','success');}}
+// Storage helpers with fallback: some browsers/webviews (notably iOS Safari
+// "Add to Home Screen" apps, and some privacy modes) silently block or wipe
+// sessionStorage on every load. Previously a blocked write failed silently
+// with no fallback, so the key never actually persisted and the prompt kept
+// reappearing every single time even within "the same tab". This tries
+// sessionStorage first, then falls back to localStorage, and never throws.
+function safeStorageGet(key){
+  try{const v=sessionStorage.getItem(key);if(v)return v;}catch(e){}
+  try{return localStorage.getItem('pa_fallback_'+key);}catch(e){return null;}
+}
+function safeStorageSet(key,val){
+  let ok=false;
+  try{sessionStorage.setItem(key,val);ok=true;}catch(e){}
+  try{localStorage.setItem('pa_fallback_'+key,val);ok=true;}catch(e){}
+  return ok;
+}
+function safeStorageRemove(key){
+  try{sessionStorage.removeItem(key);}catch(e){}
+  try{localStorage.removeItem('pa_fallback_'+key);}catch(e){}
+}
+function askForApiKey(){
+  const saved=safeStorageGet('pa_session_key');
+  if(saved){apiKey=saved;return;}
+  const entered=prompt('Enter your Precision Alpha API key (leave blank if the backend has no API_KEY set yet):');
+  if(entered){
+    apiKey=entered.trim();
+    const saved_ok=safeStorageSet('pa_session_key',apiKey);
+    if(!saved_ok)toast('Could not save the key in this browser — you may be asked again next visit','warn');
+  }
+}
+function promptForApiKey(){
+  const entered=prompt('Enter your Precision Alpha API key:',apiKey||'');
+  if(entered!==null){
+    apiKey=entered.trim();
+    if(apiKey)safeStorageSet('pa_session_key',apiKey);
+    else safeStorageRemove('pa_session_key');
+    toast('API key updated for this session','success');
+  }
+}
 async function getLatestTrade(symbol){return backend('/api/quote/'+symbol);}
 async function getBars(symbol){const end=new Date().toISOString(),start=new Date(Date.now()-2*24*60*60*1000).toISOString();return backend('/api/bars/'+symbol+'?start='+start+'&end='+end);}
 
