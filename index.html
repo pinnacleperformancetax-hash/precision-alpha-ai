@@ -235,7 +235,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
     </div>
     <div id="optionTradeSection" class="grid2" style="display:none">
       <div class="panel">
-        <div class="panel-title">Browse Option Contracts <span class="hint">(Step 1 — browsing only, no orders yet)</span></div>
+        <div class="panel-title">Browse Option Contracts</div>
         <label>Underlying Symbol</label>
         <input type="text" id="optSymbol" placeholder="e.g. AAPL, TSLA, SPY"/>
         <label>Expiration Date Range</label>
@@ -250,11 +250,30 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <option value="put">Puts only</option>
         </select>
         <button class="gold" id="browseContractsBtn" style="width:100%">🔍 Browse Contracts</button>
-        <p class="hint" style="margin-top:10px">Your account is approved through Options Level 3 (multi-leg spreads). This step only looks contracts up — placing option orders comes next.</p>
+        <p class="hint" style="margin-top:10px">Click any row in the results to select that contract below. Multi-leg spreads aren't built yet — single contract, one side, at a time.</p>
       </div>
-      <div class="panel">
-        <div class="panel-title">📋 Available Contracts</div>
-        <div id="optContractsList"><p style="color:var(--muted);font-size:13px">Enter a symbol and browse to see contracts.</p></div>
+      <div>
+        <div class="panel">
+          <div class="panel-title">📋 Available Contracts</div>
+          <div id="optContractsList"><p style="color:var(--muted);font-size:13px">Enter a symbol and browse to see contracts.</p></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">🎯 Place Option Order</div>
+          <label>Selected Contract</label>
+          <input type="text" id="optSelectedSymbol" placeholder="Click a contract above, or type an OCC symbol directly"/>
+          <label>Side</label>
+          <select id="optSide"><option value="buy">BUY</option><option value="sell">SELL</option></select>
+          <label>Quantity (contracts)</label>
+          <input type="number" id="optQty" value="1" min="1"/>
+          <label>Order Type</label>
+          <select id="optOrderType"><option value="market">Market Order</option><option value="limit">Limit Order</option></select>
+          <div id="optLimitPriceGroup" style="display:none">
+            <label>Limit Price ($ per contract)</label>
+            <input type="number" id="optLimitPrice" step="0.01" placeholder="0.00"/>
+          </div>
+          <p class="hint" style="margin-bottom:10px">1 contract = 100 shares of the underlying. Order queues and fills at the next market open if placed after-hours.</p>
+          <button class="btn-submit" id="submitOptionBtn">⚡ Submit Option Order</button>
+        </div>
       </div>
     </div>
   </section>
@@ -707,9 +726,39 @@ async function browseOptionContracts(){
     const data=await backend('/api/options/contracts/'+symbol+'?'+params.toString());
     const contracts=data.option_contracts||[];
     if(!contracts.length){listEl.innerHTML='<p style="color:var(--muted);font-size:13px">No contracts found for that symbol/date range.</p>';return;}
-    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
+    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr class="opt-row" data-symbol="${c.symbol}" data-tradable="${c.tradable?'1':'0'}" style="cursor:pointer" onclick="selectOptionContract('${c.symbol}',${c.tradable?'true':'false'})"><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
   }catch(e){
     listEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Could not load contracts: ${e.message}</p>`;
+  }
+}
+function selectOptionContract(symbol,tradable){
+  qs('#optSelectedSymbol').value=symbol;
+  if(!tradable)toast('⚠️ That contract is marked not tradable by Alpaca — order will likely be rejected','warn');
+  else toast(`Selected ${symbol}`,'success');
+}
+async function submitOptionOrder(){
+  const symbol=qs('#optSelectedSymbol').value.trim().toUpperCase();
+  const side=qs('#optSide').value;
+  const qty=parseInt(qs('#optQty').value);
+  const orderType=qs('#optOrderType').value;
+  const limitPx=qs('#optLimitPrice').value;
+  if(!symbol||symbol.length<15){toast('Select or enter a valid OCC contract symbol first','warn');return;}
+  if(!qty||qty<1){toast('Enter a valid quantity','warn');return;}
+  if(state.killed){toast('Kill switch active!','error');return;}
+  if(orderType==='limit'&&!limitPx){toast('Enter a limit price','warn');return;}
+  const order={symbol,side,qty,type:orderType};
+  if(orderType==='limit')order.limit_price=limitPx;
+  const btn=qs('#submitOptionBtn');
+  try{
+    btn.textContent='Placing...';
+    const result=await backend('/api/options/orders','POST',order);
+    toast(`✅ ${side.toUpperCase()} ${qty}x ${symbol} placed`,'success');
+    btn.textContent='⚡ Submit Option Order';
+    qs('#optSelectedSymbol').value='';
+    setTimeout(loadDashboard,1500);
+  }catch(e){
+    toast('Option order failed: '+e.message,'error');
+    btn.textContent='⚡ Submit Option Order';
   }
 }
 
@@ -831,6 +880,8 @@ window.addEventListener('load',async()=>{
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
   qs('#browseContractsBtn')?.addEventListener('click',browseOptionContracts);
+  qs('#submitOptionBtn')?.addEventListener('click',submitOptionOrder);
+  qs('#optOrderType')?.addEventListener('change',()=>{qs('#optLimitPriceGroup').style.display=qs('#optOrderType').value==='limit'?'block':'none';});
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
   qs('#tradeOrderType')?.addEventListener('change',()=>{qs('#limitPriceGroup').style.display=qs('#tradeOrderType').value==='limit'?'block':'none';});
   qs('#tradeSymbol')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
