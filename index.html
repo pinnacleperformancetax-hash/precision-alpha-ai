@@ -233,7 +233,28 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="aiAnalysisBox" style="display:none"></div>
       </div>
     </div>
-    <div id="optionTradeSection" class="grid2" style="display:none">
+    <div id="optionTradeSection" style="display:none">
+      <div class="panel" style="margin-bottom:22px">
+        <div class="panel-title">🎯 Top Option Opportunities <span class="hint">(Edge Score — a heuristic, not investment advice)</span></div>
+        <label>Scan Symbols (comma-separated)</label>
+        <input type="text" id="edgeScanSymbols" value="AAPL,TSLA,NVDA,MSFT,AMZN,GOOGL,SPY,QQQ"/>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label>Min Days to Expiration</label>
+            <input type="number" id="edgeScanMinDays" value="7" min="0"/>
+          </div>
+          <div style="flex:1">
+            <label>Max Days to Expiration</label>
+            <input type="number" id="edgeScanMaxDays" value="45" min="1"/>
+          </div>
+        </div>
+        <button class="gold" id="edgeScanBtn" style="width:100%">🔍 Scan for Best Trades</button>
+        <p class="hint" style="margin-top:10px">Scores near-the-money contracts on spread tightness, delta (leverage sweet spot), and implied volatility. Alpaca's free data feed doesn't expose per-contract volume, so this can't factor in "unusual activity" today.</p>
+      </div>
+      <div class="panel" style="margin-bottom:22px">
+        <div id="edgeScanResults"><p style="color:var(--muted);font-size:13px">Run a scan to see ranked opportunities here.</p></div>
+      </div>
+      <div class="grid2">
       <div class="panel">
         <div class="panel-title">Browse Option Contracts</div>
         <label>Underlying Symbol</label>
@@ -274,6 +295,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <p class="hint" style="margin-bottom:10px">1 contract = 100 shares of the underlying. Order queues and fills at the next market open if placed after-hours.</p>
           <button class="btn-submit" id="submitOptionBtn">⚡ Submit Option Order</button>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -736,6 +758,40 @@ function selectOptionContract(symbol,tradable){
   if(!tradable)toast('⚠️ That contract is marked not tradable by Alpaca — order will likely be rejected','warn');
   else toast(`Selected ${symbol}`,'success');
 }
+async function runEdgeScan(){
+  const symbols=qs('#edgeScanSymbols').value.trim();
+  const minDays=qs('#edgeScanMinDays').value||7,maxDays=qs('#edgeScanMaxDays').value||45;
+  const resultsEl=qs('#edgeScanResults');
+  resultsEl.innerHTML='<p style="color:var(--muted);font-size:13px">Scanning — this checks several underlyings and can take 10-20 seconds...</p>';
+  try{
+    const params=new URLSearchParams({symbols,min_days:minDays,max_days:maxDays,top_n:'10'});
+    const data=await backend('/api/options/edge-scan?'+params.toString());
+    const candidates=data.candidates||[];
+    if(!candidates.length){
+      resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">No scoreable contracts found.${data.skipped&&data.skipped.length?' Skipped: '+data.skipped.join('; '):''}</p>`;
+      return;
+    }
+    resultsEl.innerHTML=candidates.map((c,i)=>{
+      const scoreCls=c.edge_score>=70?'good':c.edge_score>=45?'warn':'bad';
+      return `<div class="ai-box ${scoreCls}" style="margin-bottom:${i<candidates.length-1?'10px':'0'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div><strong style="font-size:16px">${c.underlying}</strong> <span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span> $${c.strike_price} exp ${c.expiration_date}</div>
+          <div style="font-size:20px;font-weight:900">${c.edge_score}<span style="font-size:11px;color:var(--muted)">/100</span></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Mid ${fmtMoney(c.mid_price)} · Spread ${c.spread_pct}% · Delta ${c.delta??'—'} · IV ${c.iv??'—'}%</div>
+        <div style="font-size:13px;margin-bottom:10px">${c.reason}</div>
+        <button class="gold" style="width:100%" onclick="selectScannedContract('${c.contract_symbol}')">Use This Contract</button>
+      </div>`;
+    }).join('');
+    if(data.skipped&&data.skipped.length)resultsEl.innerHTML+=`<p class="hint" style="margin-top:10px">Skipped: ${data.skipped.join('; ')}</p>`;
+  }catch(e){
+    resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Scan failed: ${e.message}</p>`;
+  }
+}
+function selectScannedContract(symbol){
+  qs('#optSelectedSymbol').value=symbol;
+  toast(`Selected ${symbol} — scroll down to place the order`,'success');
+}
 async function submitOptionOrder(){
   const symbol=qs('#optSelectedSymbol').value.trim().toUpperCase();
   const side=qs('#optSide').value;
@@ -880,6 +936,7 @@ window.addEventListener('load',async()=>{
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
   qs('#browseContractsBtn')?.addEventListener('click',browseOptionContracts);
+  qs('#edgeScanBtn')?.addEventListener('click',runEdgeScan);
   qs('#submitOptionBtn')?.addEventListener('click',submitOptionOrder);
   qs('#optOrderType')?.addEventListener('change',()=>{qs('#optLimitPriceGroup').style.display=qs('#optOrderType').value==='limit'?'block':'none';});
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
