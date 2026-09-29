@@ -276,6 +276,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div>
         <div class="panel">
           <div class="panel-title">📋 Available Contracts</div>
+          <p class="hint" style="margin-bottom:10px">Click a row to select it for a single order, or click "+ Leg" to add it to a spread below.</p>
           <div id="optContractsList"><p style="color:var(--muted);font-size:13px">Enter a symbol and browse to see contracts.</p></div>
         </div>
         <div class="panel">
@@ -294,6 +295,20 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           </div>
           <p class="hint" style="margin-bottom:10px">1 contract = 100 shares of the underlying. Order queues and fills at the next market open if placed after-hours.</p>
           <button class="btn-submit" id="submitOptionBtn">⚡ Submit Option Order</button>
+        </div>
+        <div class="panel">
+          <div class="panel-title">🎯🎯 Spread Builder (multi-leg)</div>
+          <p class="hint" style="margin-bottom:10px">Add 2-4 legs (e.g. buy one strike, sell another). All legs fill together as one order, or the whole thing is rejected — no partial spreads. Your account is Level 3, so this is available.</p>
+          <div id="spreadLegsList"><p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p></div>
+          <label style="margin-top:14px">Order Quantity <span class="hint">(number of whole spread combos)</span></label>
+          <input type="number" id="spreadQty" value="1" min="1"/>
+          <label>Order Type</label>
+          <select id="spreadOrderType"><option value="market">Market Order</option><option value="limit">Limit Order</option></select>
+          <div id="spreadLimitPriceGroup" style="display:none">
+            <label>Limit Price ($ net debit/credit for the whole spread)</label>
+            <input type="number" id="spreadLimitPrice" step="0.01" placeholder="0.00"/>
+          </div>
+          <button class="btn-submit" id="submitSpreadBtn">⚡ Submit Spread Order</button>
         </div>
       </div>
       </div>
@@ -748,7 +763,7 @@ async function browseOptionContracts(){
     const data=await backend('/api/options/contracts/'+symbol+'?'+params.toString());
     const contracts=data.option_contracts||[];
     if(!contracts.length){listEl.innerHTML='<p style="color:var(--muted);font-size:13px">No contracts found for that symbol/date range.</p>';return;}
-    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr class="opt-row" data-symbol="${c.symbol}" data-tradable="${c.tradable?'1':'0'}" style="cursor:pointer" onclick="selectOptionContract('${c.symbol}',${c.tradable?'true':'false'})"><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
+    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th><th></th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr class="opt-row" data-symbol="${c.symbol}" data-tradable="${c.tradable?'1':'0'}" style="cursor:pointer" onclick="selectOptionContract('${c.symbol}',${c.tradable?'true':'false'})"><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td><td><button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="event.stopPropagation();addSpreadLeg('${c.symbol}')">+ Leg</button></td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
   }catch(e){
     listEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Could not load contracts: ${e.message}</p>`;
   }
@@ -758,6 +773,65 @@ function selectOptionContract(symbol,tradable){
   if(!tradable)toast('⚠️ That contract is marked not tradable by Alpaca — order will likely be rejected','warn');
   else toast(`Selected ${symbol}`,'success');
 }
+
+// ---- Spread Builder (multi-leg) ----
+let spreadLegs=[]; // [{symbol, side}]
+function addSpreadLeg(symbol){
+  if(spreadLegs.length>=4){toast('Max 4 legs per spread','warn');return;}
+  if(spreadLegs.some(l=>l.symbol===symbol)){toast('That contract is already in the spread','warn');return;}
+  spreadLegs.push({symbol,side:'buy'});
+  renderSpreadLegs();
+  toast(`Added ${symbol} as leg ${spreadLegs.length}`,'success');
+}
+function removeSpreadLeg(index){
+  spreadLegs.splice(index,1);
+  renderSpreadLegs();
+}
+function setSpreadLegSide(index,side){
+  spreadLegs[index].side=side;
+}
+function renderSpreadLegs(){
+  const el=qs('#spreadLegsList');
+  if(!spreadLegs.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p>';
+    return;
+  }
+  el.innerHTML=spreadLegs.map((leg,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;background:#080b11;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <span style="flex:1;font-size:11px;font-family:monospace">${leg.symbol}</span>
+      <select style="width:100px;margin:0" onchange="setSpreadLegSide(${i},this.value)">
+        <option value="buy" ${leg.side==='buy'?'selected':''}>BUY</option>
+        <option value="sell" ${leg.side==='sell'?'selected':''}>SELL</option>
+      </select>
+      <button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="removeSpreadLeg(${i})">✕</button>
+    </div>
+  `).join('');
+}
+async function submitSpreadOrder(){
+  if(spreadLegs.length<2){toast('Add at least 2 legs to build a spread','warn');return;}
+  const qty=parseInt(qs('#spreadQty').value);
+  const orderType=qs('#spreadOrderType').value;
+  const limitPx=qs('#spreadLimitPrice').value;
+  if(!qty||qty<1){toast('Enter a valid quantity','warn');return;}
+  if(state.killed){toast('Kill switch active!','error');return;}
+  if(orderType==='limit'&&!limitPx){toast('Enter a limit price for the spread','warn');return;}
+  const body={legs:spreadLegs.map(l=>({symbol:l.symbol,side:l.side,ratio_qty:1})),qty,type:orderType};
+  if(orderType==='limit')body.limit_price=limitPx;
+  const btn=qs('#submitSpreadBtn');
+  try{
+    btn.textContent='Placing...';
+    await backend('/api/options/orders/multi-leg','POST',body);
+    toast(`✅ Spread order placed (${spreadLegs.length} legs)`,'success');
+    btn.textContent='⚡ Submit Spread Order';
+    spreadLegs=[];
+    renderSpreadLegs();
+    setTimeout(loadDashboard,1500);
+  }catch(e){
+    toast('Spread order failed: '+e.message,'error');
+    btn.textContent='⚡ Submit Spread Order';
+  }
+}
+
 async function runEdgeScan(){
   const symbols=qs('#edgeScanSymbols').value.trim();
   const minDays=qs('#edgeScanMinDays').value||7,maxDays=qs('#edgeScanMaxDays').value||45;
@@ -939,6 +1013,8 @@ window.addEventListener('load',async()=>{
   qs('#edgeScanBtn')?.addEventListener('click',runEdgeScan);
   qs('#submitOptionBtn')?.addEventListener('click',submitOptionOrder);
   qs('#optOrderType')?.addEventListener('change',()=>{qs('#optLimitPriceGroup').style.display=qs('#optOrderType').value==='limit'?'block':'none';});
+  qs('#submitSpreadBtn')?.addEventListener('click',submitSpreadOrder);
+  qs('#spreadOrderType')?.addEventListener('change',()=>{qs('#spreadLimitPriceGroup').style.display=qs('#spreadOrderType').value==='limit'?'block':'none';});
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
   qs('#tradeOrderType')?.addEventListener('change',()=>{qs('#limitPriceGroup').style.display=qs('#tradeOrderType').value==='limit'?'block':'none';});
   qs('#tradeSymbol')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
