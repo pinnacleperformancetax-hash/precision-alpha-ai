@@ -531,7 +531,24 @@ function setRule(id,cls,val){const el=qs('#'+id);if(!el)return;el.className=`rul
 function getStore(k){return JSON.parse(localStorage.getItem(k)||'[]');}
 function setStore(k,v){localStorage.setItem(k,JSON.stringify(v.slice(0,30)));}
 
-async function backend(path,method='GET',body=null){const url=BACKEND_URL+path;const headers={'Content-Type':'application/json'};if(method!=='GET'&&apiKey)headers['X-API-Key']=apiKey;const opts={method,headers};if(body)opts.body=JSON.stringify(body);const res=await fetch(url,opts);if(res.status===401){toast('Rejected — wrong or missing API key. Reload to re-enter it.','error');throw new Error('unauthorized');}if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}return res.json();}
+async function backend(path,method='GET',body=null){const url=BACKEND_URL+path;const headers={'Content-Type':'application/json'};if(method!=='GET'&&apiKey)headers['X-API-Key']=apiKey;const opts={method,headers};if(body)opts.body=JSON.stringify(body);const res=await fetch(url,opts);if(res.status===401){
+    // A 401 here has two very different possible causes that look identical
+    // at the HTTP level, so we distinguish them by body shape instead of
+    // assuming it's always "your Precision Alpha key is wrong" — that
+    // assumption cost real debugging time once already. Routes that check
+    // OUR OWN key (require_api_key) return exactly {"error":"unauthorized"}.
+    // Routes that just proxy Alpaca (account/positions/orders/quotes) pass
+    // through WHATEVER Alpaca sends back — a 401 there means Alpaca itself
+    // rejected the backend's stored ALPACA_KEY/ALPACA_SECRET, which is a
+    // server-side credentials problem, not anything wrong on your end here.
+    let errBody={};try{errBody=await res.json();}catch(e){}
+    if(errBody&&errBody.error==='unauthorized'){
+      toast('Rejected — wrong or missing Precision Alpha API key. Use "Set API Key" to re-enter it.','error');
+    }else{
+      toast('⚠️ Alpaca rejected the backend\'s stored credentials (not your Precision Alpha key) — the ALPACA_KEY/ALPACA_SECRET on Render likely need updating.','error');
+    }
+    throw new Error('unauthorized');
+  }if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}return res.json();}
 // Storage helpers with fallback: some browsers/webviews (notably iOS "Add to
 // Home Screen" standalone web apps, and some privacy modes) silently block or
 // wipe sessionStorage AND localStorage between launches — iOS home-screen
