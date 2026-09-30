@@ -271,7 +271,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <option value="put">Puts only</option>
         </select>
         <button class="gold" id="browseContractsBtn" style="width:100%">🔍 Browse Contracts</button>
-        <p class="hint" style="margin-top:10px">Click any row in the results to select that contract below. Multi-leg spreads aren't built yet — single contract, one side, at a time.</p>
+        <p class="hint" style="margin-top:10px">Click any row to select it for a single order below, or use "+ Leg" on a row to build a multi-leg spread instead.</p>
       </div>
       <div>
         <div class="panel">
@@ -293,6 +293,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
             <label>Limit Price ($ per contract)</label>
             <input type="number" id="optLimitPrice" step="0.01" placeholder="0.00"/>
           </div>
+          <div id="optRiskReward" style="margin-bottom:14px"></div>
           <p class="hint" style="margin-bottom:10px">1 contract = 100 shares of the underlying. Order queues and fills at the next market open if placed after-hours.</p>
           <button class="btn-submit" id="submitOptionBtn">⚡ Submit Option Order</button>
         </div>
@@ -300,6 +301,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <div class="panel-title">🎯🎯 Spread Builder (multi-leg)</div>
           <p class="hint" style="margin-bottom:10px">Add 2-4 legs (e.g. buy one strike, sell another). All legs fill together as one order, or the whole thing is rejected — no partial spreads. Your account is Level 3, so this is available.</p>
           <div id="spreadLegsList"><p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p></div>
+          <div id="spreadRiskReward" style="margin-bottom:14px"></div>
           <label style="margin-top:14px">Order Quantity <span class="hint">(number of whole spread combos)</span></label>
           <input type="number" id="spreadQty" value="1" min="1"/>
           <label>Order Type</label>
@@ -772,6 +774,57 @@ function selectOptionContract(symbol,tradable){
   qs('#optSelectedSymbol').value=symbol;
   if(!tradable)toast('⚠️ That contract is marked not tradable by Alpaca — order will likely be rejected','warn');
   else toast(`Selected ${symbol}`,'success');
+  updateSingleLegRiskReward();
+}
+
+// ---- Risk/Reward: OCC symbol parsing + calculations ----
+// OCC format: ROOT (1-6 letters) + YYMMDD + C/P + strike*1000, zero-padded to 8 digits
+// e.g. AAPL260930C00340000 -> root AAPL, expiry 2026-09-30, type call, strike 340.00
+function parseOccSymbol(symbol){
+  const m=symbol.match(/^([A-Z]{1,6})(\d{6})([CP])(\d{8})$/);
+  if(!m)return null;
+  return {
+    root:m[1],
+    expiry:`20${m[2].slice(0,2)}-${m[2].slice(2,4)}-${m[2].slice(4,6)}`,
+    type:m[3]==='C'?'call':'put',
+    strike:parseInt(m[4],10)/1000,
+  };
+}
+function riskRewardBox(items){
+  return `<div class="sum-grid" style="margin-top:0">${items.map(([label,val,cls])=>`<div class="sum-item"><span>${label}</span><strong class="${cls||''}">${val}</strong></div>`).join('')}</div>`;
+}
+async function updateSingleLegRiskReward(){
+  const symbol=qs('#optSelectedSymbol').value.trim().toUpperCase();
+  const el=qs('#optRiskReward');
+  const parsed=parseOccSymbol(symbol);
+  if(!parsed){el.innerHTML='';return;}
+  const side=qs('#optSide').value;
+  const qty=parseInt(qs('#optQty').value)||1;
+  el.innerHTML='<p style="color:var(--muted);font-size:12px">Loading risk/reward...</p>';
+  try{
+    const q=await backend('/api/options/quote/'+symbol);
+    if(q.mid==null){el.innerHTML='<p style="color:var(--muted);font-size:12px">No live quote available for risk/reward calc.</p>';return;}
+    const premiumPerContract=q.mid*100;
+    const totalPremium=premiumPerContract*qty;
+    const strikeTotal=parsed.strike*100*qty;
+    let maxLoss,maxGain,breakeven;
+    if(side==='buy'){
+      maxLoss=fmtMoney(totalPremium);
+      maxGain=parsed.type==='call'?'Unlimited':fmtMoney(Math.max(strikeTotal-totalPremium,0));
+      breakeven=parsed.type==='call'?parsed.strike+q.mid:parsed.strike-q.mid;
+    }else{
+      maxGain=fmtMoney(totalPremium);
+      maxLoss=parsed.type==='call'?'Unlimited':fmtMoney(Math.max(strikeTotal-totalPremium,0));
+      breakeven=parsed.type==='call'?parsed.strike+q.mid:parsed.strike-q.mid;
+    }
+    el.innerHTML=riskRewardBox([
+      ['Max Loss',maxLoss,maxLoss==='Unlimited'?'loss':''],
+      ['Max Gain',maxGain,maxGain==='Unlimited'?'':''],
+      ['Breakeven',fmtMoney(breakeven),'neutral'],
+    ])+`<p class="hint" style="margin-top:8px">Based on mid price ${fmtMoney(q.mid)}/contract. Actual fill price may differ.</p>`;
+  }catch(e){
+    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not load quote for risk/reward: ${e.message}</p>`;
+  }
 }
 
 // ---- Spread Builder (multi-leg) ----
@@ -789,11 +842,13 @@ function removeSpreadLeg(index){
 }
 function setSpreadLegSide(index,side){
   spreadLegs[index].side=side;
+  updateSpreadRiskReward();
 }
 function renderSpreadLegs(){
   const el=qs('#spreadLegsList');
   if(!spreadLegs.length){
     el.innerHTML='<p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p>';
+    qs('#spreadRiskReward').innerHTML='';
     return;
   }
   el.innerHTML=spreadLegs.map((leg,i)=>`
@@ -806,7 +861,47 @@ function renderSpreadLegs(){
       <button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="removeSpreadLeg(${i})">✕</button>
     </div>
   `).join('');
+  updateSpreadRiskReward();
 }
+async function updateSpreadRiskReward(){
+  const el=qs('#spreadRiskReward');
+  const qty=parseInt(qs('#spreadQty').value)||1;
+  if(spreadLegs.length<2){el.innerHTML='';return;}
+  el.innerHTML='<p style="color:var(--muted);font-size:12px">Loading risk/reward...</p>';
+  try{
+    const quotes=await Promise.all(spreadLegs.map(l=>backend('/api/options/quote/'+l.symbol).catch(()=>null)));
+    if(quotes.some(q=>!q||q.mid==null)){
+      el.innerHTML='<p style="color:var(--muted);font-size:12px">Missing live quote for one or more legs — risk/reward unavailable.</p>';
+      return;
+    }
+    const netPerContract=spreadLegs.reduce((sum,leg,i)=>sum+(leg.side==='buy'?quotes[i].mid:-quotes[i].mid),0);
+    const netTotal=netPerContract*100*qty;
+    const parsedLegs=spreadLegs.map(l=>parseOccSymbol(l.symbol));
+    const isVertical=spreadLegs.length===2 && parsedLegs[0] && parsedLegs[1]
+      && parsedLegs[0].root===parsedLegs[1].root && parsedLegs[0].expiry===parsedLegs[1].expiry
+      && parsedLegs[0].type===parsedLegs[1].type
+      && spreadLegs[0].side!==spreadLegs[1].side;
+
+    if(isVertical){
+      const strikeDiff=Math.abs(parsedLegs[0].strike-parsedLegs[1].strike)*100*qty;
+      const isDebit=netTotal>0;
+      const maxLoss=isDebit?netTotal:Math.max(strikeDiff-Math.abs(netTotal),0);
+      const maxGain=isDebit?Math.max(strikeDiff-netTotal,0):Math.abs(netTotal);
+      el.innerHTML=riskRewardBox([
+        [isDebit?'Net Debit':'Net Credit',fmtMoney(Math.abs(netTotal)),''],
+        ['Max Loss',fmtMoney(maxLoss),'loss'],
+        ['Max Gain',fmtMoney(maxGain),''],
+      ])+'<p class="hint" style="margin-top:8px">Vertical spread detected — max loss/gain computed exactly from strike width.</p>';
+    }else{
+      el.innerHTML=riskRewardBox([
+        [netTotal>0?'Net Debit':'Net Credit',fmtMoney(Math.abs(netTotal)),''],
+      ])+'<p class="hint" style="margin-top:8px">This leg combination isn\'t a simple vertical spread, so exact max loss/gain isn\'t auto-computed — only the net cost is shown.</p>';
+    }
+  }catch(e){
+    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not compute risk/reward: ${e.message}</p>`;
+  }
+}
+
 async function submitSpreadOrder(){
   if(spreadLegs.length<2){toast('Add at least 2 legs to build a spread','warn');return;}
   const qty=parseInt(qs('#spreadQty').value);
@@ -865,6 +960,7 @@ async function runEdgeScan(){
 function selectScannedContract(symbol){
   qs('#optSelectedSymbol').value=symbol;
   toast(`Selected ${symbol} — scroll down to place the order`,'success');
+  updateSingleLegRiskReward();
 }
 async function submitOptionOrder(){
   const symbol=qs('#optSelectedSymbol').value.trim().toUpperCase();
@@ -909,8 +1005,23 @@ async function checkGate(){
     const trade=await getLatestTrade(symbol);
     price=trade.trade?.p||trade.trade?.price||0;
     const cost=price*qty;
+    const stopPrice=price-(RULES.maxLossPerTrade/qty);
+    const targetPrice=price+(RULES.takeProfitTarget/qty);
+    const maxLoss=RULES.maxLossPerTrade; // your per-trade loss cap, applies regardless of qty
+    const maxGain=RULES.takeProfitTarget;
+    const rrRatio=maxLoss>0?(maxGain/maxLoss).toFixed(2):'—';
     qs('#quoteBox').innerHTML=`<div class="quote-symbol">${symbol}</div><div class="quote-price">${fmtMoney(price)}</div><div class="quote-sub">${qty} share${qty>1?'s':''} = ${fmtMoney(cost)}</div>`;
-    qs('#riskBox').innerHTML=`<div class="rule-list"><div class="rule ${cost<=RULES.maxPositionSize?'ok':'bad'}"><span class="rule-dot"></span><span>Position: ${fmtMoney(cost)}</span><span class="rule-val">${cost<=RULES.maxPositionSize?'OK':'OVER '+fmtMoney(RULES.maxPositionSize)}</span></div><div class="rule ok"><span class="rule-dot"></span><span>Stop loss: ${fmtMoney(price-(RULES.maxLossPerTrade/qty))}</span></div><div class="rule ok"><span class="rule-dot"></span><span>Take profit: ${fmtMoney(price+(RULES.takeProfitTarget/qty))}</span></div></div>`;
+    qs('#riskBox').innerHTML=`
+      <div class="sum-grid" style="margin-top:0">
+        <div class="sum-item"><span>Max Loss</span><strong class="loss">${fmtMoney(maxLoss)}</strong></div>
+        <div class="sum-item"><span>Max Gain</span><strong>${fmtMoney(maxGain)}</strong></div>
+        <div class="sum-item"><span>Risk : Reward</span><strong class="neutral">1 : ${rrRatio}</strong></div>
+      </div>
+      <div class="rule-list" style="margin-top:14px">
+        <div class="rule ${cost<=RULES.maxPositionSize?'ok':'bad'}"><span class="rule-dot"></span><span>Position size: ${fmtMoney(cost)}</span><span class="rule-val">${cost<=RULES.maxPositionSize?'OK':'OVER '+fmtMoney(RULES.maxPositionSize)}</span></div>
+        <div class="rule ok"><span class="rule-dot"></span><span>Stop loss triggers at ${fmtMoney(stopPrice)}</span></div>
+        <div class="rule ok"><span class="rule-dot"></span><span>Take profit triggers at ${fmtMoney(targetPrice)}</span></div>
+      </div>`;
   }catch(e){qs('#quoteBox').innerHTML=`<p style="color:var(--muted);font-size:13px">Could not fetch quote for ${symbol}.</p>`;}
   const gate=checkSafetyGate(confidence,volatility,syncScore);
   resultEl.style.display='block';submitBtn.style.display='none';
@@ -1013,8 +1124,12 @@ window.addEventListener('load',async()=>{
   qs('#edgeScanBtn')?.addEventListener('click',runEdgeScan);
   qs('#submitOptionBtn')?.addEventListener('click',submitOptionOrder);
   qs('#optOrderType')?.addEventListener('change',()=>{qs('#optLimitPriceGroup').style.display=qs('#optOrderType').value==='limit'?'block':'none';});
+  qs('#optSide')?.addEventListener('change',updateSingleLegRiskReward);
+  qs('#optQty')?.addEventListener('input',updateSingleLegRiskReward);
+  qs('#optSelectedSymbol')?.addEventListener('change',updateSingleLegRiskReward);
   qs('#submitSpreadBtn')?.addEventListener('click',submitSpreadOrder);
   qs('#spreadOrderType')?.addEventListener('change',()=>{qs('#spreadLimitPriceGroup').style.display=qs('#spreadOrderType').value==='limit'?'block':'none';});
+  qs('#spreadQty')?.addEventListener('input',updateSpreadRiskReward);
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
   qs('#tradeOrderType')?.addEventListener('change',()=>{qs('#limitPriceGroup').style.display=qs('#tradeOrderType').value==='limit'?'block':'none';});
   qs('#tradeSymbol')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
