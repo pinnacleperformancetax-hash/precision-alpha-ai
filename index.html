@@ -298,9 +298,29 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
           <button class="btn-submit" id="submitOptionBtn">⚡ Submit Option Order</button>
         </div>
         <div class="panel">
+          <div class="panel-title">🧩 Strategy Templates</div>
+          <p class="hint" style="margin-bottom:10px">Picks real, currently-available contracts near the money and auto-fills the Spread Builder below. You can still edit every leg before submitting — nothing is placed until you hit Submit.</p>
+          <label>Underlying Symbol</label>
+          <input type="text" id="stratSymbol" placeholder="e.g. AAPL"/>
+          <label>Strategy</label>
+          <select id="stratType">
+            <option value="bull_call">Bull Call Spread — bullish, defined risk</option>
+            <option value="bear_put">Bear Put Spread — bearish, defined risk</option>
+            <option value="long_straddle">Long Straddle — big move either direction</option>
+            <option value="long_strangle">Long Strangle — big move, cheaper than straddle</option>
+            <option value="iron_condor">Iron Condor — bet the price stays in a range</option>
+            <option value="butterfly_call">Call Butterfly — bet the price lands near one strike</option>
+          </select>
+          <label>Strike Spacing ($) <span class="hint">how far apart the strikes are</span></label>
+          <input type="number" id="stratSpacing" value="5" min="0.5" step="0.5"/>
+          <label>Target Days to Expiration</label>
+          <input type="number" id="stratDays" value="21" min="1"/>
+          <button class="gold" id="autoBuildBtn" style="width:100%">🧩 Auto-Build Legs</button>
+        </div>
+        <div class="panel">
           <div class="panel-title">🎯🎯 Spread Builder (multi-leg)</div>
           <p class="hint" style="margin-bottom:10px">Add 2-4 legs (e.g. buy one strike, sell another). All legs fill together as one order, or the whole thing is rejected — no partial spreads. Your account is Level 3, so this is available.</p>
-          <div id="spreadLegsList"><p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p></div>
+          <div id="spreadLegsList"><p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above, or use a Strategy Template.</p></div>
           <div id="spreadRiskReward" style="margin-bottom:14px"></div>
           <label style="margin-top:14px">Order Quantity <span class="hint">(number of whole spread combos)</span></label>
           <input type="number" id="spreadQty" value="1" min="1"/>
@@ -346,6 +366,12 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         </div>
         <div id="watchlistTags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px"></div>
       </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🎚️ RISK LEVEL <span class="hint">(applies to the Auto Engine and to every open position)</span></div>
+      <div id="riskLevelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px"><p style="color:var(--muted);font-size:13px">Loading risk levels...</p></div>
+      <div id="riskOverrides" style="margin-top:20px"></div>
+      <p class="hint" style="margin-top:12px">Always on at every level: no new buys while the overall market is trending down, no shorting, and a daily loss limit. Switching levels changes the stop-loss for positions you already hold.</p>
     </div>
     <div class="panel">
       <div class="panel-title">📡 LIVE SCAN FEED <span class="hint">(server scan log)</span></div>
@@ -510,7 +536,7 @@ const TRADING_HOURS_LABEL='9:30am–4:00pm EST';
 
 // RULES starts empty and is populated from /api/settings/get on load — this is now
 // the single source of truth. Nothing in this file hardcodes a rule value anymore.
-let RULES={maxDailyLoss:null,maxTrades:null,maxPositionSize:null,maxLossPerTrade:null,takeProfitTarget:null,minConfidence:null,maxVolatility:null,minSyncScore:null,maxSharesPerStock:null,takeProfitPct:null};
+let RULES={maxDailyLoss:null,maxTrades:null,maxPositionSize:null,maxLossPct:null,scaleOutTier1Pct:null,scaleOutTier2Pct:null,scaleOutTier3Pct:null,takeProfitTarget:null,minConfidence:null,maxVolatility:null,minSyncScore:null,maxSharesPerStock:null,takeProfitPct:null};
 
 // The API key is never written into this file. You're asked for it once
 // per browser tab session (kept in sessionStorage, which clears when the
@@ -623,9 +649,9 @@ function promptForApiKey(){
 async function getLatestTrade(symbol){return backend('/api/quote/'+symbol);}
 async function getBars(symbol){const end=new Date().toISOString(),start=new Date(Date.now()-2*24*60*60*1000).toISOString();return backend('/api/bars/'+symbol+'?start='+start+'&end='+end);}
 
-async function sendTradeEmail(symbol,side,qty,price,reason,verdict){try{await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:ALERT_EMAIL,subject:`🤖 Precision Alpha: ${verdict} — ${side.toUpperCase()} ${qty} ${symbol}`,trade_symbol:symbol,trade_side:side.toUpperCase(),trade_qty:qty,trade_price:fmtMoney(price),trade_total:fmtMoney(price*qty),trade_reason:reason,trade_verdict:verdict,trade_time:new Date().toLocaleString('en-US',{timeZone:'America/New_York'})+' EST',stop_loss:fmtMoney(price-(RULES.maxLossPerTrade/qty)),take_profit:fmtMoney(price+(RULES.takeProfitTarget/qty))});}catch(e){console.error('Email failed:',e);}}
+async function sendTradeEmail(symbol,side,qty,price,reason,verdict){try{await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:ALERT_EMAIL,subject:`🤖 Precision Alpha: ${verdict} — ${side.toUpperCase()} ${qty} ${symbol}`,trade_symbol:symbol,trade_side:side.toUpperCase(),trade_qty:qty,trade_price:fmtMoney(price),trade_total:fmtMoney(price*qty),trade_reason:reason,trade_verdict:verdict,trade_time:new Date().toLocaleString('en-US',{timeZone:'America/New_York'})+' EST',stop_loss:fmtMoney(price*(1-RULES.maxLossPct/100)),take_profit:fmtMoney(price*(1+RULES.scaleOutTier3Pct/100))});}catch(e){console.error('Email failed:',e);}}
 
-async function analyzeTradeWithAI(symbol,side,qty,price,confidence,volatility,syncScore,style){const prompt=`You are Precision Alpha AI, an expert trading analyst. Analyze this paper trade.\nTRADE: ${side.toUpperCase()} ${qty} shares of ${symbol} at $${price.toFixed(2)}\nSTYLE: ${style}\nSIGNALS: X24 Confidence ${confidence}/100 · X25 Volatility ${volatility}/100 · X26 Sync ${syncScore}/100\nRULES: Max loss $${RULES.maxLossPerTrade}/trade · Target profit $${RULES.takeProfitTarget}/trade\n\nProvide:\n1. VERDICT: "✅ GOOD TRADE" or "⚠️ RISKY TRADE" or "❌ BAD TRADE"\n2. SCORE: 0-100\n3. REASON: 2-3 simple sentences\n4. STOP LOSS: specific exit price\n5. TAKE PROFIT: specific exit price\n6. TIP: one actionable tip\n\nSimple language. No jargon.`;const data=await backend('/api/ai/analyze','POST',{prompt,max_tokens:500});return data.content[0].text;}
+async function analyzeTradeWithAI(symbol,side,qty,price,confidence,volatility,syncScore,style){const prompt=`You are Precision Alpha AI, an expert trading analyst. Analyze this paper trade.\nTRADE: ${side.toUpperCase()} ${qty} shares of ${symbol} at $${price.toFixed(2)}\nSTYLE: ${style}\nSIGNALS: X24 Confidence ${confidence}/100 · X25 Volatility ${volatility}/100 · X26 Sync ${syncScore}/100\nRULES: Stop-loss ${RULES.maxLossPct}% below entry · Final profit target ${RULES.scaleOutTier3Pct}% above entry\n\nProvide:\n1. VERDICT: "✅ GOOD TRADE" or "⚠️ RISKY TRADE" or "❌ BAD TRADE"\n2. SCORE: 0-100\n3. REASON: 2-3 simple sentences\n4. STOP LOSS: specific exit price\n5. TAKE PROFIT: specific exit price\n6. TIP: one actionable tip\n\nSimple language. No jargon.`;const data=await backend('/api/ai/analyze','POST',{prompt,max_tokens:500});return data.content[0].text;}
 
 // ---- Settings sync: pulls the real enforced rules from the backend ----
 function fmtHoursLabel(){return TRADING_HOURS_LABEL;}
@@ -712,6 +738,86 @@ async function pollAutoStatus(){
     qs('#autoStatus').textContent='Could not reach engine status';
     console.error(e);
   }
+}
+// ---- Risk level ----
+let riskState=null;
+async function loadRiskLevel(){
+  try{riskState=await backend('/api/risk/get');renderRiskLevel();}
+  catch(e){qs('#riskLevelCards').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load risk levels.</p>';}
+}
+function renderRiskLevel(){
+  if(!riskState)return;
+  const el=qs('#riskLevelCards');
+  el.innerHTML=Object.entries(riskState.profiles).map(([key,p])=>{
+    const r=p.rules,active=key===riskState.level;
+    const sig=p.confluence_offset<0?'Acts on fewer confirming signals':p.confluence_offset>0?'Needs more confirming signals':'Standard signal agreement';
+    return `<div onclick="setRiskLevel('${key}')" style="cursor:pointer;background:#080b11;border:1px solid ${active?'var(--gold)':'var(--line)'};border-radius:16px;padding:16px;${active?'box-shadow:0 0 0 1px var(--gold) inset;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="font-size:15px;${active?'color:var(--gold)':''}">${p.label}</strong>${active?'<span class="badge-pill filled">ACTIVE</span>':''}</div>
+      <p style="color:var(--muted);font-size:12px;line-height:1.5;margin:0 0 12px">${p.description}</p>
+      <div style="font-size:12px;line-height:1.9;color:var(--text)">
+        <div>Stop-loss: <strong>−${r.maxLossPct}%</strong></div>
+        <div>Max shares per stock: <strong>${r.maxSharesPerStock}</strong></div>
+        <div>Daily loss limit: <strong>${fmtMoney(r.maxDailyLoss)}</strong></div>
+        <div>Profit-taking: <strong>+${r.scaleOutTier1Pct}% / +${r.scaleOutTier2Pct}% / +${r.scaleOutTier3Pct}%</strong></div>
+        <div style="color:var(--muted)">${sig}</div>
+      </div></div>`;
+  }).join('');
+  renderRiskOverrides();
+}
+function renderRiskOverrides(){
+  if(!riskState)return;
+  const ov=riskState.symbol_overrides||{};
+  const entries=Object.entries(ov);
+  const opts=Object.entries(riskState.profiles).map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('');
+  const rows=entries.length?entries.map(([sym,lvl])=>{
+    const p=riskState.profiles[lvl];
+    if(!p)return '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#080b11;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px">
+      <span><strong>${sym}</strong> &mdash; ${p.label} <span style="color:var(--muted);font-size:12px">stop &minus;${p.rules.maxLossPct}% &middot; max ${p.rules.maxSharesPerStock} shares &middot; profit steps +${p.rules.scaleOutTier1Pct}/${p.rules.scaleOutTier2Pct}/${p.rules.scaleOutTier3Pct}%</span></span>
+      <button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="removeSymbolOverride('${sym}')">Remove</button></div>`;
+  }).join(''):'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">No overrides &mdash; every stock follows the account level above.</p>';
+  qs('#riskOverrides').innerHTML=`<div class="panel-title" style="font-size:13px;margin-bottom:10px">Per-stock overrides <span class="hint">(a stock listed here ignores the account level)</span></div>${rows}
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <input type="text" id="riskOvSymbol" list="riskOvSymbols" placeholder="Symbol, e.g. AAPL" style="margin:0;flex:1;min-width:130px"/>
+      <datalist id="riskOvSymbols">${(riskState.scan_list||[]).map(s=>`<option value="${s}">`).join('')}</datalist>
+      <select id="riskOvLevel" style="margin:0;width:150px">${opts}</select>
+      <button class="gold" style="padding:10px 18px;white-space:nowrap" onclick="addSymbolOverride()">Set for this stock</button>
+    </div>`;
+}
+function addSymbolOverride(){
+  const sym=qs('#riskOvSymbol').value.trim().toUpperCase();
+  if(!/^[A-Z]{1,6}(\.[A-Z])?$/.test(sym)){toast('Enter a ticker like AAPL','warn');return;}
+  setSymbolRisk(sym,qs('#riskOvLevel').value);
+}
+function removeSymbolOverride(sym){setSymbolRisk(sym,'default');}
+async function setSymbolRisk(symbol,level){
+  if(!riskState)return;
+  let msg;
+  if(level==='default'){
+    msg=`Remove the override on ${symbol}?\n\n${symbol} will follow the account-wide level (${riskState.profiles[riskState.level].label}) again, including its stop-loss on any shares you hold.`;
+  }else{
+    const p=riskState.profiles[level];
+    msg=`Set ${symbol} to ${p.label}?\n\nStop-loss −${p.rules.maxLossPct}%, max ${p.rules.maxSharesPerStock} shares, profit steps +${p.rules.scaleOutTier1Pct}% / +${p.rules.scaleOutTier2Pct}% / +${p.rules.scaleOutTier3Pct}%.\n\nThis applies to your open ${symbol} position immediately: if it is already past the new stop, it is sold on the next scan cycle. The daily loss limit and other account-wide protections are unchanged.`;
+  }
+  if(!confirm(msg))return;
+  try{
+    await backend('/api/risk/symbol','POST',{symbol,level});
+    toast(level==='default'?`${symbol} follows the account level`:`${symbol} set to ${riskState.profiles[level].label}`,'success');
+    await loadRiskLevel();
+  }catch(e){toast('Could not change '+symbol+': '+e.message,'error');}
+}
+async function setRiskLevel(level){
+  if(!riskState||level===riskState.level)return;
+  const p=riskState.profiles[level];
+  const msg=`Switch to ${p.label}?\n\n${p.description}\n\nStop-loss becomes −${p.rules.maxLossPct}% and max shares per stock ${p.rules.maxSharesPerStock}. This applies to positions you ALREADY hold: anything past the new stop is sold on the next scan cycle, and positions above the new share cap simply stop being added to.`;
+  if(!confirm(msg))return;
+  try{
+    await backend('/api/risk/set','POST',{level});
+    toast(`Risk level set to ${p.label}`,'success');
+    await loadRiskLevel();
+    await fetchSettings();
+    pollAutoStatus();
+  }catch(e){toast('Could not change risk level: '+e.message,'error');}
 }
 async function startAutoEngine(){
   try{await backend('/api/engine/start','POST');toast('🤖 Auto engine started on server','success');await pollAutoStatus();}
@@ -845,11 +951,11 @@ async function updateSingleLegRiskReward(){
 }
 
 // ---- Spread Builder (multi-leg) ----
-let spreadLegs=[]; // [{symbol, side}]
+let spreadLegs=[]; // [{symbol, side, ratio_qty}]
 function addSpreadLeg(symbol){
   if(spreadLegs.length>=4){toast('Max 4 legs per spread','warn');return;}
   if(spreadLegs.some(l=>l.symbol===symbol)){toast('That contract is already in the spread','warn');return;}
-  spreadLegs.push({symbol,side:'buy'});
+  spreadLegs.push({symbol,side:'buy',ratio_qty:1});
   renderSpreadLegs();
   toast(`Added ${symbol} as leg ${spreadLegs.length}`,'success');
 }
@@ -861,20 +967,25 @@ function setSpreadLegSide(index,side){
   spreadLegs[index].side=side;
   updateSpreadRiskReward();
 }
+function setSpreadLegRatio(index,ratio){
+  spreadLegs[index].ratio_qty=Math.max(1,parseInt(ratio)||1);
+  updateSpreadRiskReward();
+}
 function renderSpreadLegs(){
   const el=qs('#spreadLegsList');
   if(!spreadLegs.length){
-    el.innerHTML='<p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above.</p>';
+    el.innerHTML='<p style="color:var(--muted);font-size:13px">No legs added yet — click "+ Leg" on a contract above, or use a Strategy Template.</p>';
     qs('#spreadRiskReward').innerHTML='';
     return;
   }
   el.innerHTML=spreadLegs.map((leg,i)=>`
     <div style="display:flex;align-items:center;gap:8px;background:#080b11;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
       <span style="flex:1;font-size:11px;font-family:monospace">${leg.symbol}</span>
-      <select style="width:100px;margin:0" onchange="setSpreadLegSide(${i},this.value)">
+      <select style="width:90px;margin:0" onchange="setSpreadLegSide(${i},this.value)">
         <option value="buy" ${leg.side==='buy'?'selected':''}>BUY</option>
         <option value="sell" ${leg.side==='sell'?'selected':''}>SELL</option>
       </select>
+      <input type="number" min="1" value="${leg.ratio_qty||1}" style="width:56px;margin:0;padding:8px" title="Ratio qty (e.g. 2 for the middle leg of a butterfly)" onchange="setSpreadLegRatio(${i},this.value)"/>
       <button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="removeSpreadLeg(${i})">✕</button>
     </div>
   `).join('');
@@ -891,13 +1002,14 @@ async function updateSpreadRiskReward(){
       el.innerHTML='<p style="color:var(--muted);font-size:12px">Missing live quote for one or more legs — risk/reward unavailable.</p>';
       return;
     }
-    const netPerContract=spreadLegs.reduce((sum,leg,i)=>sum+(leg.side==='buy'?quotes[i].mid:-quotes[i].mid),0);
+    const netPerContract=spreadLegs.reduce((sum,leg,i)=>sum+(leg.side==='buy'?quotes[i].mid:-quotes[i].mid)*(leg.ratio_qty||1),0);
     const netTotal=netPerContract*100*qty;
     const parsedLegs=spreadLegs.map(l=>parseOccSymbol(l.symbol));
     const isVertical=spreadLegs.length===2 && parsedLegs[0] && parsedLegs[1]
       && parsedLegs[0].root===parsedLegs[1].root && parsedLegs[0].expiry===parsedLegs[1].expiry
       && parsedLegs[0].type===parsedLegs[1].type
-      && spreadLegs[0].side!==spreadLegs[1].side;
+      && spreadLegs[0].side!==spreadLegs[1].side
+      && (spreadLegs[0].ratio_qty||1)===1 && (spreadLegs[1].ratio_qty||1)===1;
 
     if(isVertical){
       const strikeDiff=Math.abs(parsedLegs[0].strike-parsedLegs[1].strike)*100*qty;
@@ -919,6 +1031,97 @@ async function updateSpreadRiskReward(){
   }
 }
 
+// ---- Strategy Templates: fetch real contracts and auto-build the legs ----
+// Never invents a symbol — every leg comes from an actual contract Alpaca
+// returned as available. If no near-enough expiration or strike exists,
+// it says so rather than guessing at a symbol that might not exist.
+function pickNearestExpiration(contracts,targetDays){
+  const today=new Date();
+  const uniqueDates=[...new Set(contracts.map(c=>c.expiration_date))];
+  if(!uniqueDates.length)return null;
+  let best=uniqueDates[0],bestDiff=Infinity;
+  for(const d of uniqueDates){
+    const diff=Math.abs((new Date(d)-today)/86400000-targetDays);
+    if(diff<bestDiff){bestDiff=diff;best=d;}
+  }
+  return best;
+}
+function pickNearestContract(contracts,expirationDate,targetStrike,type){
+  const candidates=contracts.filter(c=>c.expiration_date===expirationDate&&c.type===type&&c.tradable);
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>Math.abs(parseFloat(a.strike_price)-targetStrike)-Math.abs(parseFloat(b.strike_price)-targetStrike));
+  return candidates[0];
+}
+async function autoBuildStrategy(){
+  const symbol=qs('#stratSymbol').value.trim().toUpperCase();
+  const strategy=qs('#stratType').value;
+  const spacing=parseFloat(qs('#stratSpacing').value)||5;
+  const targetDays=parseInt(qs('#stratDays').value)||21;
+  if(!symbol){toast('Enter an underlying symbol first','warn');return;}
+  const btn=qs('#autoBuildBtn');
+  btn.textContent='Building...';
+  try{
+    const trade=await getLatestTrade(symbol);
+    const price=trade.trade?.p||trade.trade?.price||0;
+    if(!price){toast('Could not get a live price for '+symbol,'error');btn.textContent='🧩 Auto-Build Legs';return;}
+
+    const params=new URLSearchParams({
+      expiration_date_gte:new Date(Date.now()+(targetDays-10)*86400000).toISOString().slice(0,10),
+      expiration_date_lte:new Date(Date.now()+(targetDays+15)*86400000).toISOString().slice(0,10),
+      limit:'250',
+    });
+    const data=await backend('/api/options/contracts/'+symbol+'?'+params.toString());
+    const contracts=data.option_contracts||[];
+    if(!contracts.length){toast('No contracts found in that expiration window — try a different Target Days value','error');btn.textContent='🧩 Auto-Build Legs';return;}
+
+    const expDate=pickNearestExpiration(contracts,targetDays);
+    const need=(strike,type)=>{
+      const c=pickNearestContract(contracts,expDate,strike,type);
+      if(!c)throw new Error(`No tradable ${type} near $${strike.toFixed(2)} for ${expDate}`);
+      return c;
+    };
+
+    let legs=[];
+    if(strategy==='bull_call'){
+      const lower=need(price,'call'), upper=need(price+spacing,'call');
+      legs=[{symbol:lower.symbol,side:'buy',ratio_qty:1},{symbol:upper.symbol,side:'sell',ratio_qty:1}];
+    }else if(strategy==='bear_put'){
+      const upper=need(price,'put'), lower=need(price-spacing,'put');
+      legs=[{symbol:upper.symbol,side:'buy',ratio_qty:1},{symbol:lower.symbol,side:'sell',ratio_qty:1}];
+    }else if(strategy==='long_straddle'){
+      const call=need(price,'call'), put=need(price,'put');
+      legs=[{symbol:call.symbol,side:'buy',ratio_qty:1},{symbol:put.symbol,side:'buy',ratio_qty:1}];
+    }else if(strategy==='long_strangle'){
+      const call=need(price+spacing,'call'), put=need(price-spacing,'put');
+      legs=[{symbol:call.symbol,side:'buy',ratio_qty:1},{symbol:put.symbol,side:'buy',ratio_qty:1}];
+    }else if(strategy==='iron_condor'){
+      const sellPut=need(price-spacing,'put'), buyPut=need(price-2*spacing,'put');
+      const sellCall=need(price+spacing,'call'), buyCall=need(price+2*spacing,'call');
+      legs=[
+        {symbol:sellPut.symbol,side:'sell',ratio_qty:1},{symbol:buyPut.symbol,side:'buy',ratio_qty:1},
+        {symbol:sellCall.symbol,side:'sell',ratio_qty:1},{symbol:buyCall.symbol,side:'buy',ratio_qty:1},
+      ];
+    }else if(strategy==='butterfly_call'){
+      const lower=need(price-spacing,'call'), middle=need(price,'call'), upper=need(price+spacing,'call');
+      if(lower.symbol===middle.symbol||middle.symbol===upper.symbol){
+        throw new Error('Strike spacing too small — lower/middle/upper resolved to the same contract');
+      }
+      legs=[
+        {symbol:lower.symbol,side:'buy',ratio_qty:1},
+        {symbol:middle.symbol,side:'sell',ratio_qty:2},
+        {symbol:upper.symbol,side:'buy',ratio_qty:1},
+      ];
+    }
+
+    spreadLegs=legs;
+    renderSpreadLegs();
+    toast(`Built ${legs.length}-leg ${qs('#stratType option:checked').textContent.split(' —')[0]} — review legs below before submitting`,'success');
+  }catch(e){
+    toast('Could not auto-build: '+e.message,'error');
+  }
+  btn.textContent='🧩 Auto-Build Legs';
+}
+
 async function submitSpreadOrder(){
   if(spreadLegs.length<2){toast('Add at least 2 legs to build a spread','warn');return;}
   const qty=parseInt(qs('#spreadQty').value);
@@ -927,7 +1130,7 @@ async function submitSpreadOrder(){
   if(!qty||qty<1){toast('Enter a valid quantity','warn');return;}
   if(state.killed){toast('Kill switch active!','error');return;}
   if(orderType==='limit'&&!limitPx){toast('Enter a limit price for the spread','warn');return;}
-  const body={legs:spreadLegs.map(l=>({symbol:l.symbol,side:l.side,ratio_qty:1})),qty,type:orderType};
+  const body={legs:spreadLegs.map(l=>({symbol:l.symbol,side:l.side,ratio_qty:l.ratio_qty||1})),qty,type:orderType};
   if(orderType==='limit')body.limit_price=limitPx;
   const btn=qs('#submitSpreadBtn');
   try{
@@ -1022,10 +1225,12 @@ async function checkGate(){
     const trade=await getLatestTrade(symbol);
     price=trade.trade?.p||trade.trade?.price||0;
     const cost=price*qty;
-    const stopPrice=price-(RULES.maxLossPerTrade/qty);
-    const targetPrice=price+(RULES.takeProfitTarget/qty);
-    const maxLoss=RULES.maxLossPerTrade; // your per-trade loss cap, applies regardless of qty
-    const maxGain=RULES.takeProfitTarget;
+    // Same percentage rules the server engine applies to every open position
+    // (manual trades included), so what's shown here matches what will happen.
+    const stopPrice=price*(1-RULES.maxLossPct/100);
+    const targetPrice=price*(1+RULES.scaleOutTier3Pct/100);
+    const maxLoss=cost*RULES.maxLossPct/100;
+    const maxGain=cost*RULES.scaleOutTier3Pct/100;
     const rrRatio=maxLoss>0?(maxGain/maxLoss).toFixed(2):'—';
     qs('#quoteBox').innerHTML=`<div class="quote-symbol">${symbol}</div><div class="quote-price">${fmtMoney(price)}</div><div class="quote-sub">${qty} share${qty>1?'s':''} = ${fmtMoney(cost)}</div>`;
     qs('#riskBox').innerHTML=`
@@ -1036,8 +1241,8 @@ async function checkGate(){
       </div>
       <div class="rule-list" style="margin-top:14px">
         <div class="rule ${cost<=RULES.maxPositionSize?'ok':'bad'}"><span class="rule-dot"></span><span>Position size: ${fmtMoney(cost)}</span><span class="rule-val">${cost<=RULES.maxPositionSize?'OK':'OVER '+fmtMoney(RULES.maxPositionSize)}</span></div>
-        <div class="rule ok"><span class="rule-dot"></span><span>Stop loss triggers at ${fmtMoney(stopPrice)}</span></div>
-        <div class="rule ok"><span class="rule-dot"></span><span>Take profit triggers at ${fmtMoney(targetPrice)}</span></div>
+        <div class="rule ok"><span class="rule-dot"></span><span>Stop loss at ${fmtMoney(stopPrice)} (−${RULES.maxLossPct}%)</span></div>
+        <div class="rule ok"><span class="rule-dot"></span><span>Final profit target at ${fmtMoney(targetPrice)} (+${RULES.scaleOutTier3Pct}%)</span></div>
       </div>`;
   }catch(e){qs('#quoteBox').innerHTML=`<p style="color:var(--muted);font-size:13px">Could not fetch quote for ${symbol}.</p>`;}
   const gate=checkSafetyGate(confidence,volatility,syncScore);
@@ -1132,7 +1337,7 @@ async function activateKill(){
 
 window.addEventListener('load',async()=>{
   emailjs.init(EMAILJS_PUBLIC);
-  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();pollAutoStatus();}}));
+  qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();pollAutoStatus();loadRiskLevel();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#setKeyBtn')?.addEventListener('click',promptForApiKey);
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
@@ -1145,6 +1350,7 @@ window.addEventListener('load',async()=>{
   qs('#optQty')?.addEventListener('input',updateSingleLegRiskReward);
   qs('#optSelectedSymbol')?.addEventListener('change',updateSingleLegRiskReward);
   qs('#submitSpreadBtn')?.addEventListener('click',submitSpreadOrder);
+  qs('#autoBuildBtn')?.addEventListener('click',autoBuildStrategy);
   qs('#spreadOrderType')?.addEventListener('change',()=>{qs('#spreadLimitPriceGroup').style.display=qs('#spreadOrderType').value==='limit'?'block':'none';});
   qs('#spreadQty')?.addEventListener('input',updateSpreadRiskReward);
   qs('#submitTradeBtn')?.addEventListener('click',submitTrade);
