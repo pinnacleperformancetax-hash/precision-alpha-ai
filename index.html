@@ -147,6 +147,10 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div class="stat"><span>Trades This Week</span><strong id="dashTrades">-- / --</strong><small>From live order history</small></div>
       <div class="stat"><span>System Mode</span><strong>PAPER SAFE</strong><small>Live execution disabled</small></div>
     </div>
+    <div class="panel" style="margin-bottom:22px">
+      <div class="panel-title">💰 Profit Ledger <span class="hint">(banked = already sold &middot; at risk = still held, can change)</span></div>
+      <div id="profitLedger"><p style="color:var(--muted);font-size:13px">Loading...</p></div>
+    </div>
     <div class="hero">
       <h3>Institutional execution intelligence suite combining autonomous route intelligence, volatility containment, replay enforcement, execution gates, and synchronization scoring — now connected to Alpaca paper trading.</h3>
       <p id="heroRules">X24-X26 enforces all safety rules automatically. Loading current limits...</p>
@@ -856,7 +860,25 @@ async function loadDashboard(){
 
     await loadPositions();
     await loadRecentOrders();
+    loadProfitLedger();
   }catch(e){qs('#topBal').textContent='Error';console.error(e);}
+}
+async function loadProfitLedger(){
+  const el=qs('#profitLedger');if(!el)return;
+  try{
+    const d=await backend('/api/profit/ledger');
+    const money=v=>v==null?'—':fmtMoney(v);
+    const tone=v=>(v==null||v>=0)?'':'loss';
+    const rows=(d.recent||[]).slice(0,8).map(e=>`<tr><td style="color:var(--muted);font-size:11px">${e.date.slice(5)} ${e.time}</td><td><strong>${e.symbol}</strong></td><td>${e.qty}</td><td style="font-size:12px">${fmtMoney(e.entry)} &rarr; ${fmtMoney(e.exit)}</td><td style="color:${e.pnl>=0?'var(--green)':'var(--red)'}">${fmtMoney(e.pnl)}</td><td style="color:var(--muted);font-size:11px">${e.reason}</td></tr>`).join('');
+    el.innerHTML=`<div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
+        <div class="sum-item"><span>Banked today</span><strong class="${tone(d.realized_today)}">${money(d.realized_today)}</strong></div>
+        <div class="sum-item"><span>Banked this week</span><strong class="${tone(d.realized_week)}">${money(d.realized_week)}</strong></div>
+        <div class="sum-item"><span>Banked since ${d.tracking_since}</span><strong class="${tone(d.realized_total)}">${money(d.realized_total)}</strong></div>
+        <div class="sum-item"><span>Still at risk (${d.open_positions==null?'—':d.open_positions} open)</span><strong class="neutral">${money(d.unrealized_open)}</strong></div>
+      </div>
+      ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
+      <p class="hint" style="margin-top:12px">Estimated from the price at the moment of each sell. Includes sells by the Auto Engine only &mdash; manual sells from the Trade page aren&rsquo;t counted. Tracking restarts from zero whenever the server is redeployed.</p>`;
+  }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
 }
 async function loadPositions(){try{const pos=await backend('/api/positions');if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);const over=RULES.maxSharesPerStock&&parseInt(p.qty)>RULES.maxSharesPerStock;return`<tr><td><strong>${p.symbol}</strong>${over?' <span style="color:var(--red);font-size:11px">⚠ over cap</span>':''}</td><td>${p.qty}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;}catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 async function loadRecentOrders(){try{const orders=await backend('/api/orders?status=all&limit=8');if(!orders.length){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">No orders yet.</p>';return;}qs('#recentOrders').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td><td style="color:var(--muted);font-size:11px">${new Date(o.submitted_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;}catch(e){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
