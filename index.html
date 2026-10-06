@@ -869,6 +869,22 @@ async function loadProfitLedger(){
     const d=await backend('/api/profit/ledger');
     const money=v=>v==null?'—':fmtMoney(v);
     const tone=v=>(v==null||v>=0)?'':'loss';
+    const vt=d.vault||{};
+    window.__vaultState=vt;
+    const vaultHtml=`<div class="panel-title" style="font-size:13px;margin:22px 0 10px">🏦 Trading account vs. vault <span class="hint">(bookkeeping only &mdash; no money moves at Alpaca)</span></div>
+      <div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
+        <div class="sum-item"><span>Trading account (at risk)</span><strong class="neutral">${money(vt.trading_balance)}</strong></div>
+        <div class="sum-item"><span>Vault (set aside)</span><strong>${money(vt.vault_balance)}</strong></div>
+        <div class="sum-item"><span>Invested now</span><strong class="neutral">${money(vt.invested)}</strong></div>
+        <div class="sum-item"><span>Room left to invest</span><strong class="${tone(vt.room_left)}">${money(vt.room_left)}</strong></div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:16px">
+        <div style="flex:1;min-width:190px"><label>Trading account starting amount ($)</label><input type="number" id="vaultStart" min="1000" step="500" value="${vt.trading_start==null?20000:vt.trading_start}" style="margin:0"/></div>
+        <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultCap" ${vt.cap_enabled?'checked':''} style="width:auto;margin:0"/> Never invest more than the trading balance</label>
+        <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultRefill" ${vt.refill_first?'checked':''} style="width:auto;margin:0"/> Refill losses from profit before sweeping</label>
+        <button class="gold" style="padding:11px 20px;margin-bottom:12px" onclick="saveVault()">Save</button>
+      </div>
+      <p class="hint" style="margin-top:0">After each close (4:05 PM ET) that day's banked profit moves to the vault; losses come out of the trading account only. With &ldquo;refill&rdquo; off, every gain is swept out, so the trading balance can only go down.</p>`;
     const rows=(d.recent||[]).slice(0,8).map(e=>`<tr><td style="color:var(--muted);font-size:11px">${e.date.slice(5)} ${e.time}</td><td><strong>${e.symbol}</strong></td><td>${e.qty}</td><td style="font-size:12px">${fmtMoney(e.entry)} &rarr; ${fmtMoney(e.exit)}</td><td style="color:${e.pnl>=0?'var(--green)':'var(--red)'}">${fmtMoney(e.pnl)}</td><td style="color:var(--muted);font-size:11px">${e.reason}</td></tr>`).join('');
     el.innerHTML=`<div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
         <div class="sum-item"><span>Banked today</span><strong class="${tone(d.realized_today)}">${money(d.realized_today)}</strong></div>
@@ -876,9 +892,18 @@ async function loadProfitLedger(){
         <div class="sum-item"><span>Banked since ${d.tracking_since}</span><strong class="${tone(d.realized_total)}">${money(d.realized_total)}</strong></div>
         <div class="sum-item"><span>Still at risk (${d.open_positions==null?'—':d.open_positions} open)</span><strong class="neutral">${money(d.unrealized_open)}</strong></div>
       </div>
+      ${vaultHtml}
       ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
       <p class="hint" style="margin-top:12px">Estimated from the price at the moment of each sell. Includes sells by the Auto Engine only &mdash; manual sells from the Trade page aren&rsquo;t counted. Tracking restarts from zero whenever the server is redeployed.</p>`;
   }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
+}
+async function saveVault(){
+  const body={trading_start:parseFloat(qs('#vaultStart').value),cap_enabled:qs('#vaultCap').checked,refill_first:qs('#vaultRefill').checked};
+  if(!(body.trading_start>=1000)){toast('Enter a starting amount of at least $1,000','warn');return;}
+  const wasOn=window.__vaultState&&window.__vaultState.cap_enabled;
+  if(body.cap_enabled&&!wasOn&&!confirm('Turning the cap on means the engine will skip any buy that would push total invested above the trading balance. Continue?'))return;
+  try{await backend('/api/vault/set','POST',body);toast('Vault settings saved','success');loadProfitLedger();}
+  catch(e){toast('Could not save: '+e.message,'error');}
 }
 async function loadPositions(){try{const pos=await backend('/api/positions');if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);const over=RULES.maxSharesPerStock&&parseInt(p.qty)>RULES.maxSharesPerStock;return`<tr><td><strong>${p.symbol}</strong>${over?' <span style="color:var(--red);font-size:11px">⚠ over cap</span>':''}</td><td>${p.qty}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;}catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 async function loadRecentOrders(){try{const orders=await backend('/api/orders?status=all&limit=8');if(!orders.length){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">No orders yet.</p>';return;}qs('#recentOrders').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td><td style="color:var(--muted);font-size:11px">${new Date(o.submitted_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;}catch(e){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
