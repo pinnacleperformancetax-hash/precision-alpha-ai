@@ -578,7 +578,7 @@ async function backend(path,method='GET',body=null){const url=BACKEND_URL+path;c
       toast('⚠️ Alpaca rejected the backend\'s stored credentials (not your Precision Alpha key) — the ALPACA_KEY/ALPACA_SECRET on Render likely need updating.','error');
     }
     throw new Error('unauthorized');
-  }if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`HTTP ${res.status}`);}return res.json();}
+  }if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||e.error||`HTTP ${res.status}`);}return res.json();}
 // Storage helpers with fallback: some browsers/webviews (notably iOS "Add to
 // Home Screen" standalone web apps, and some privacy modes) silently block or
 // wipe sessionStorage AND localStorage between launches — iOS home-screen
@@ -749,10 +749,16 @@ async function loadRiskLevel(){
   try{riskState=await backend('/api/risk/get');renderRiskLevel();}
   catch(e){qs('#riskLevelCards').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load risk levels.</p>';}
 }
+// The server's JSON comes back alphabetised (Aggressive, Balanced, Conservative),
+// so impose the order that reads naturally: least risk to most.
+function riskEntries(){
+  const order=['conservative','balanced','aggressive'],p=riskState.profiles;
+  return [...order.filter(k=>p[k]).map(k=>[k,p[k]]),...Object.entries(p).filter(([k])=>!order.includes(k))];
+}
 function renderRiskLevel(){
   if(!riskState)return;
   const el=qs('#riskLevelCards');
-  el.innerHTML=Object.entries(riskState.profiles).map(([key,p])=>{
+  el.innerHTML=riskEntries().map(([key,p])=>{
     const r=p.rules,active=key===riskState.level;
     const sig=p.confluence_offset<0?'Acts on fewer confirming signals':p.confluence_offset>0?'Needs more confirming signals':'Standard signal agreement';
     return `<div onclick="setRiskLevel('${key}')" style="cursor:pointer;background:#080b11;border:1px solid ${active?'var(--gold)':'var(--line)'};border-radius:16px;padding:16px;${active?'box-shadow:0 0 0 1px var(--gold) inset;':''}">
@@ -772,7 +778,7 @@ function renderRiskOverrides(){
   if(!riskState)return;
   const ov=riskState.symbol_overrides||{};
   const entries=Object.entries(ov);
-  const opts=Object.entries(riskState.profiles).map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('');
+  const opts=riskEntries().map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('');
   const rows=entries.length?entries.map(([sym,lvl])=>{
     const p=riskState.profiles[lvl];
     if(!p)return '';
@@ -871,6 +877,8 @@ async function loadProfitLedger(){
     const tone=v=>(v==null||v>=0)?'':'loss';
     const vt=d.vault||{};
     window.__vaultState=vt;
+    const hLabel={sweep:'Swept into vault',take_out:'Taken out',to_trading:'Moved to trading'};
+    const histRows=(vt.history&&vt.history.length)?`<table class="tbl" style="margin-top:14px"><thead><tr><th>When</th><th>What</th><th>Amount</th></tr></thead><tbody>${vt.history.map(h=>`<tr><td style="color:var(--muted);font-size:11px">${h.date.slice(5)} ${h.time}</td><td>${hLabel[h.type]||h.type}${h.note?` <span style="color:var(--muted);font-size:11px">(${h.note})</span>`:''}</td><td>${fmtMoney(h.amount)}</td></tr>`).join('')}</tbody></table>`:'';
     const vaultHtml=`<div class="panel-title" style="font-size:13px;margin:22px 0 10px">🏦 Trading account vs. vault <span class="hint">(bookkeeping only &mdash; no money moves at Alpaca)</span></div>
       <div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
         <div class="sum-item"><span>Trading account (at risk)</span><strong class="neutral">${money(vt.trading_balance)}</strong></div>
@@ -878,7 +886,14 @@ async function loadProfitLedger(){
         <div class="sum-item"><span>Invested now</span><strong class="neutral">${money(vt.invested)}</strong></div>
         <div class="sum-item"><span>Room left to invest</span><strong class="${tone(vt.room_left)}">${money(vt.room_left)}</strong></div>
       </div>
-      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:16px">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:18px">
+        <div style="flex:1;min-width:170px"><label>Pull money out of the vault ($)</label><input type="number" id="vaultAmt" min="0.01" step="10" placeholder="Amount" style="margin:0"/></div>
+        <button class="dark" style="margin:0;padding:11px 16px" onclick="vaultMove('take_out')">Take out</button>
+        <button class="dark" style="margin:0;padding:11px 16px" onclick="vaultMove('to_trading')">Move to trading account</button>
+      </div>
+      <p class="hint" style="margin:8px 0 0">&ldquo;Take out&rdquo; records that you spent or withdrew it &mdash; it doesn&rsquo;t touch your Alpaca account. With real money, you&rsquo;d withdraw it from the brokerage yourself. &ldquo;Move to trading account&rdquo; puts it back at risk.</p>
+      ${histRows}
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:20px">
         <div style="flex:1;min-width:190px"><label>Trading account starting amount ($)</label><input type="number" id="vaultStart" min="1000" step="500" value="${vt.trading_start==null?20000:vt.trading_start}" style="margin:0"/></div>
         <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultCap" ${vt.cap_enabled?'checked':''} style="width:auto;margin:0"/> Never invest more than the trading balance</label>
         <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultRefill" ${vt.refill_first?'checked':''} style="width:auto;margin:0"/> Refill losses from profit before sweeping</label>
@@ -896,6 +911,19 @@ async function loadProfitLedger(){
       ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
       <p class="hint" style="margin-top:12px">Estimated from the price at the moment of each sell. Includes sells by the Auto Engine only &mdash; manual sells from the Trade page aren&rsquo;t counted. Tracking restarts from zero whenever the server is redeployed.</p>`;
   }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
+}
+async function vaultMove(action){
+  const amount=parseFloat(qs('#vaultAmt').value);
+  if(!(amount>0)){toast('Enter an amount first','warn');return;}
+  const msg=action==='take_out'
+    ?`Take ${fmtMoney(amount)} out of the vault?\n\nThis records it as spent or withdrawn. It does not move money at Alpaca.`
+    :`Move ${fmtMoney(amount)} from the vault to the trading account?\n\nIt will be at risk again.`;
+  if(!confirm(msg))return;
+  try{
+    await backend('/api/vault/withdraw','POST',{action,amount});
+    toast(action==='take_out'?'Taken out of the vault':'Moved to the trading account','success');
+    loadProfitLedger();
+  }catch(e){toast('Could not move money: '+e.message,'error');}
 }
 async function saveVault(){
   const body={trading_start:parseFloat(qs('#vaultStart').value),cap_enabled:qs('#vaultCap').checked,refill_first:qs('#vaultRefill').checked};
