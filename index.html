@@ -909,7 +909,7 @@ async function loadProfitLedger(){
       </div>
       ${vaultHtml}
       ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
-      <p class="hint" style="margin-top:12px">Estimated from the price at the moment of each sell. Includes sells by the Auto Engine only &mdash; manual sells from the Trade page aren&rsquo;t counted. Tracking restarts from zero whenever the server is redeployed.</p>`;
+      <p class="hint" style="margin-top:12px">Calculated from your Alpaca fill history (oldest shares sold first), so it includes every sell &mdash; engine and manual &mdash; and survives restarts and redeploys. Counts sells from the tracking-start date above.</p>`;
   }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
 }
 async function vaultMove(action){
