@@ -848,7 +848,13 @@ async function loadDashboard(){
   try{
     const acct=await backend('/api/account');
     const equity=parseFloat(acct.equity);
-    const pl=equity-parseFloat(acct.last_equity);
+    // Today's P&L must be the SAME number the engine's daily-loss limit uses
+    // (equity minus 9:30 AM opening equity, from the server). Alpaca's own
+    // last_equity is yesterday's close, which wrongly includes overnight and
+    // after-hours moves and made this show STOP while the engine was fine.
+    let pl=equity-parseFloat(acct.last_equity);
+    try{const st=await backend('/api/engine/status');if(st&&typeof st.today_pl==='number')pl=st.today_pl;}catch(e){}
+    state.todayPL=pl;
     qs('#dashBal').textContent=fmtMoney(equity);
     qs('#topBal').textContent=fmtMoney(equity);
     const plEl=qs('#dashPL');plEl.textContent=fmtMoney(pl);plEl.style.color=pl>=0?'var(--green)':'var(--red)';
@@ -1371,7 +1377,7 @@ async function loadTradeLog(){
     qs('#tradeLogTable').innerHTML=`<table class="tbl"><thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th></tr></thead><tbody>${orders.map(o=>`<tr><td style="font-size:11px;color:var(--muted)">${new Date(o.submitted_at).toLocaleDateString()}</td><td><strong>${o.symbol}</strong></td><td><span class="badge-pill ${o.side}">${o.side.toUpperCase()}</span></td><td>${o.qty}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${o.status}</span></td></tr>`).join('')}</tbody></table>`;
     const weekOrders=await getWeeklyOrders();
     const acct=await backend('/api/account').catch(()=>null);
-    const todayPL=acct?parseFloat(acct.equity)-parseFloat(acct.last_equity):0;
+    const todayPL=(typeof state.todayPL==='number')?state.todayPL:(acct?parseFloat(acct.equity)-parseFloat(acct.last_equity):0);
     qs('#weeklySummary').innerHTML=`<div class="sum-grid"><div class="sum-item"><span>This Week</span><strong class="neutral">${weekOrders.length}${RULES.maxTrades<999?'/'+RULES.maxTrades:''}</strong></div><div class="sum-item"><span>Today P&L</span><strong class="${todayPL>=0?'':'loss'}">${fmtMoney(todayPL)}</strong></div><div class="sum-item"><span>Limit Left</span><strong class="neutral">${fmtMoney(RULES.maxDailyLoss+todayPL)}</strong></div></div>`;
   }catch(e){qs('#tradeLogTable').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}
 }
