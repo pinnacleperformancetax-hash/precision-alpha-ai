@@ -160,6 +160,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div class="panel-title">🛡️ Safety Rules <span class="hint">(live from server)</span></div>
         <div class="rule-list">
           <div class="rule" id="rule-daily"><span class="rule-dot"></span><span>Daily loss limit: <span id="ruleDailyLabel">--</span></span><span id="rule-daily-val" class="rule-val">--</span></div>
+          <div class="rule" id="rule-stockloss"><span class="rule-dot"></span><span>Per-stock daily loss: <span id="ruleStockLossLabel">--</span></span><span id="rule-stockloss-val" class="rule-val">--</span></div>
           <div class="rule" id="rule-trades"><span class="rule-dot"></span><span id="ruleTradesLabel">Weekly trades: --</span><span id="rule-trades-val" class="rule-val">--</span></div>
           <div class="rule" id="rule-time"><span class="rule-dot"></span><span>Trading hours <span id="ruleTimeLabel">--</span></span><span id="rule-time-val" class="rule-val">--</span></div>
           <div class="rule" id="rule-conf"><span class="rule-dot"></span><span>Min confidence score: <span id="ruleConfLabel">--</span></span><span id="rule-conf-val" class="rule-val">--</span></div>
@@ -669,6 +670,7 @@ function updateRuleLabels(){
   qs('#ruleVolLabel').textContent=RULES.maxVolatility;
   qs('#ruleSyncLabel').textContent=RULES.minSyncScore;
   qs('#ruleSharesLabel').textContent=RULES.maxSharesPerStock;
+  if(qs('#ruleStockLossLabel')){qs('#ruleStockLossLabel').textContent=fmtMoney(RULES.maxDailyLossPerStock);setRule('rule-stockloss','ok','each stock');}
   qs('#heroRules').textContent=`X24-X26 enforces all safety rules automatically. ${fmtMoney(RULES.maxDailyLoss)} daily loss limit · ${fmtTradesLimit()} · ${fmtHoursLabel()} only.`;
   qs('#autoDailyLimit').textContent=fmtMoney(RULES.maxDailyLoss);
   qs('#autoWeeklyLimit').textContent=fmtTradesLimit();
@@ -768,6 +770,7 @@ function renderRiskLevel(){
         <div>Stop-loss: <strong>−${r.maxLossPct}%</strong></div>
         <div>Max shares per stock: <strong>${r.maxSharesPerStock}</strong></div>
         <div>Daily loss limit: <strong>${fmtMoney(r.maxDailyLoss)}</strong></div>
+        <div>Per-stock daily loss: <strong>${fmtMoney(r.maxDailyLossPerStock)}</strong></div>
         <div>Profit-taking: <strong>+${r.scaleOutTier1Pct}% / +${r.scaleOutTier2Pct}% / +${r.scaleOutTier3Pct}%</strong></div>
         <div style="color:var(--muted)">${sig}</div>
       </div></div>`;
