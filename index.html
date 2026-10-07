@@ -692,8 +692,10 @@ async function fetchSettings(){
 
 // ---- Weekly trade count from real order history (no localStorage guesswork) ----
 async function getWeeklyOrders(){
-  const orders=await backend('/api/orders?status=all&limit=200');
+  // Ask only for this week's orders (Alpaca's own date filter) and allow up to
+  // 500, so the weekly count no longer sticks at 200 once the engine gets busy.
   const weekStart=new Date();weekStart.setDate(weekStart.getDate()-weekStart.getDay());weekStart.setHours(0,0,0,0);
+  const orders=await backend('/api/orders?status=all&limit=500&after='+encodeURIComponent(weekStart.toISOString()));
   return orders.filter(o=>new Date(o.submitted_at)>=weekStart);
 }
 
