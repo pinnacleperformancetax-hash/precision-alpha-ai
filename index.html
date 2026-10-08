@@ -530,7 +530,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
 // backend proxy at BACKEND_URL, which holds the real credentials server-side.
 const BACKEND_URL='https://precision-alpha-backend-hs6g.onrender.com';
 const EMAILJS_PUBLIC='i9a72iQL0ChaDHoZL';
-const EMAILJS_SERVICE='service_rucosmz';
+const EMAILJS_SERVICE='service_fjwybmw';
 const EMAILJS_TEMPLATE='template_qajvk5t';
 const ALERT_EMAIL='pinnacleperformancetax@gmail.com';
 const DEFAULT_WATCHLIST=['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META'];
@@ -1437,10 +1437,13 @@ window.addEventListener('load',async()=>{
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#setKeyBtn')?.addEventListener('click',promptForApiKey);
   qs('#testEmailBtn')?.addEventListener('click',async()=>{
+    const pick=prompt('Which test email?\n1 = plain test\n2 = stop-loss alert card\n3 = weekly summary','1');
+    if(pick===null)return;
+    const kind={'1':'plain','2':'trade','3':'weekly'}[String(pick).trim()]||'plain';
     try{
       toast('Sending test email...','warn');
-      const r=await backend('/api/email/test','POST');
-      if(r.ok){toast('✉️ Email accepted. Check '+r.to+' (and Spam).','success');}
+      const r=await backend('/api/email/test','POST',{kind});
+      if(r.ok){toast('✉️ Email accepted ('+kind+'). Check '+r.to+' (and Spam).','success');}
       else{alert('Email FAILED.\n\nTo: '+r.to+'\nService: '+r.service+'\nTemplate: '+r.template+'\n\nEmailJS said:\n'+r.detail);}
     }catch(e){alert('Could not run the email test: '+(e&&e.message?e.message:e));}
   });
