@@ -136,6 +136,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="authPwWrap"><label for="authPassword">Password</label><input type="password" id="authPassword" minlength="6" autocomplete="current-password"/></div>
         <button type="submit" class="auth-primary" id="authSubmit">Sign in</button>
       </form>
+      <div class="auth-links" style="margin-top:6px"><a href="terms.html" style="color:#a8b0bd;font-size:12px;margin:0 6px">Terms</a><a href="privacy.html" style="color:#a8b0bd;font-size:12px;margin:0 6px">Privacy</a></div>
       <div class="auth-links">
         <button type="button" class="auth-link" id="authForgot">Forgot password?</button>
         <button type="button" class="auth-link" id="authToggle" style="display:none"></button>
@@ -575,7 +576,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
 <script>
 // NOTE: No Alpaca API keys live in this file. All Alpaca calls go through the
 // backend proxy at BACKEND_URL, which holds the real credentials server-side.
-const BACKEND_URL='https://precision-alpha-backend-hs6g.onrender.com';
+const BACKEND_URL=/(^|\.)precisionalphaai\.com$/.test(location.hostname)?'https://api.precisionalphaai.com':'https://precision-alpha-backend-hs6g.onrender.com';
 const EMAILJS_PUBLIC='i9a72iQL0ChaDHoZL';
 const EMAILJS_SERVICE='service_fjwybmw';
 const EMAILJS_TEMPLATE='template_qajvk5t';
