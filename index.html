@@ -138,6 +138,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <button class="refresh" id="refreshBtn">Refresh</button>
     </div>
   </div>
+  <div id="aiBanner" style="display:none;margin:12px 0;padding:12px 16px;border-radius:12px;border:1px solid #ff6b6b;background:rgba(255,107,107,.12);color:#ff9b9b;font-size:13px;line-height:1.5"></div>
 
   <section id="environment" class="view active">
     <h2>Environment</h2>
@@ -733,6 +734,14 @@ async function pollAutoStatus(){
   try{
     const data=await backend('/api/engine/status');
     state.marketOpen=data.is_market_hours;
+    const aiB=qs('#aiBanner');
+    if(aiB){
+      const h=data.ai_health;
+      if(h&&h.ok===false){
+        aiB.innerHTML='<strong>⚠️ AI is not responding.</strong> '+String(h.message||'').replace(/</g,'&lt;')+(h.since?' <span style="opacity:.8">(since '+String(h.since).replace(/</g,'&lt;')+' ET)</span>':'');
+        aiB.style.display='block';
+      }else{aiB.style.display='none';}
+    }
     renderAutoRunningUI(data.running);
     setRule('rule-time',data.is_market_hours?'ok':'warn',data.is_market_hours?'OPEN':'CLOSED');
     const feedEl=qs('#autoFeed');
