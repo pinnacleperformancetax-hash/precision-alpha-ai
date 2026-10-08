@@ -7,8 +7,8 @@
 <style>
 *{box-sizing:border-box}
 :root{--bg:#05070b;--panel:#0d1117;--panel2:#10151d;--line:#202838;--text:#f7f7f7;--muted:#a8b0bd;--gold:#d4a22f;--green:#67ff74;--red:#ff4f4f;--yellow:#ffd600}
-body::before{content:'';position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(2,3,5,.88),rgba(2,3,5,.9)),url('bg.webp') center/cover no-repeat;pointer-events:none}
-@media(max-width:700px){body::before{background-image:linear-gradient(rgba(2,3,5,.88),rgba(2,3,5,.9)),url('bg-small.webp')}}
+body::before{content:'';position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(2,3,5,.6),rgba(2,3,5,.72)),url('bg.webp') center/cover no-repeat;pointer-events:none}
+@media(max-width:700px){body::before{background-image:linear-gradient(rgba(2,3,5,.6),rgba(2,3,5,.72)),url('bg-small.webp')}}
 body{margin:0;background:#05070b;color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif;display:flex;min-height:100vh}
 .sidebar{width:270px;background:#070a0f;border-right:1px solid var(--line);padding:26px 20px;position:fixed;top:0;bottom:0;left:0;overflow:auto;display:flex;flex-direction:column}
 .badge{width:42px;height:42px;border:2px solid var(--gold);border-radius:12px;color:var(--gold);display:grid;place-items:center;font-weight:900;margin-bottom:14px}
