@@ -135,6 +135,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <span class="acct">Balance: <strong id="topBal">Loading...</strong></span>
       <span class="acct">P&L: <strong id="topPL">$0.00</strong></span>
       <button class="dark" id="setKeyBtn" style="margin-left:0">🔑 Set API Key</button>
+      <button class="dark" id="testEmailBtn" style="margin-left:0">✉️ Test Email</button>
       <button class="refresh" id="refreshBtn">Refresh</button>
     </div>
   </div>
@@ -1435,6 +1436,14 @@ window.addEventListener('load',async()=>{
   qsa('.nav').forEach(b=>b.addEventListener('click',()=>{showView(b.dataset.view);if(b.dataset.view==='environment')loadDashboard();if(b.dataset.view==='log')loadTradeLog();if(b.dataset.view==='auto'){renderWatchlist();pollAutoStatus();loadRiskLevel();}}));
   qs('#refreshBtn')?.addEventListener('click',loadDashboard);
   qs('#setKeyBtn')?.addEventListener('click',promptForApiKey);
+  qs('#testEmailBtn')?.addEventListener('click',async()=>{
+    try{
+      toast('Sending test email...','warn');
+      const r=await backend('/api/email/test','POST');
+      if(r.ok){toast('✉️ Email accepted. Check '+r.to+' (and Spam).','success');}
+      else{alert('Email FAILED.\n\nTo: '+r.to+'\nService: '+r.service+'\nTemplate: '+r.template+'\n\nEmailJS said:\n'+r.detail);}
+    }catch(e){alert('Could not run the email test: '+(e&&e.message?e.message:e));}
+  });
   qs('#refreshLog')?.addEventListener('click',loadTradeLog);
   qs('#checkGateBtn')?.addEventListener('click',checkGate);
   qs('#browseContractsBtn')?.addEventListener('click',browseOptionContracts);
