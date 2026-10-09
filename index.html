@@ -1069,6 +1069,8 @@ async function loadProfitLedger(){
       </div>
       <p class="hint" style="margin-top:0">After each close (4:05 PM ET) that day's banked profit moves to the vault; losses come out of the trading account only. With &ldquo;refill&rdquo; off, every gain is swept out, so the trading balance can only go down.</p>`;
     const rows=(d.recent||[]).slice(0,8).map(e=>`<tr><td style="color:var(--muted);font-size:11px">${e.date.slice(5)} ${e.time}</td><td><strong>${e.symbol}</strong></td><td>${e.qty}</td><td style="font-size:12px">${fmtMoney(e.entry)} &rarr; ${fmtMoney(e.exit)}</td><td style="color:${e.pnl>=0?'var(--green)':'var(--red)'}">${fmtMoney(e.pnl)}</td><td style="color:var(--muted);font-size:11px">${e.reason}</td></tr>`).join('');
+    const _um=d.unmatched_sells||[];const _hw=d.history_window||{};
+    const unm=`<details style="margin-top:14px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Data check: ${d.unmatched_sell_shares||0} sold share(s) with no matching buy in the loaded history &middot; history loaded from ${(_hw.earliest_fill_loaded||'').slice(0,10)||'&mdash;'}</summary>${_um.length?`<table class="tbl" style="margin-top:8px"><thead><tr><th>When</th><th>Stock</th><th>Shares</th><th>Price</th></tr></thead><tbody>${_um.map(u=>`<tr><td style="font-size:11px;color:var(--muted)">${u.date.slice(5)} ${u.time}</td><td><strong>${u.symbol}</strong></td><td>${u.shares}</td><td>${fmtMoney(u.price)}</td></tr>`).join('')}</tbody></table><p class="hint" style="margin:8px 0 0">These sells have no earlier buy on file (probably shares bought before the history window), so their profit isn&rsquo;t counted.</p>`:'<p class="hint" style="margin:8px 0 0">None &mdash; every sell is matched to a buy.</p>'}</details>`;
     el.innerHTML=`<div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
         <div class="sum-item"><span>Banked today</span><strong class="${tone(d.realized_today)}">${money(d.realized_today)}</strong></div>
         <div class="sum-item"><span>Banked this week</span><strong class="${tone(d.realized_week)}">${money(d.realized_week)}</strong></div>
@@ -1077,7 +1079,8 @@ async function loadProfitLedger(){
       </div>
       ${vaultHtml}
       ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
-      <p class="hint" style="margin-top:12px">Calculated from your Alpaca fill history (oldest shares sold first), so it includes every sell &mdash; engine and manual &mdash; and survives restarts and redeploys. Counts sells from the tracking-start date above.</p>`;
+      <p class="hint" style="margin-top:12px">Calculated from your Alpaca fill history (oldest shares sold first), so it includes every sell &mdash; engine and manual &mdash; and survives restarts and redeploys. Counts sells from the tracking-start date above.</p>
+      ${unm}`;
   }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
 }
 async function vaultMove(action){
