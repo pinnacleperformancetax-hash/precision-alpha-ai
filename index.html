@@ -684,6 +684,23 @@ async function showCustomerHome(me,tok){
          if(!confirm('Disconnect your Alpaca account from Precision Alpha AI?'))return;
          try{await fetch(BACKEND_URL+'/api/alpaca/disconnect',{method:'POST',headers:{Authorization:'Bearer '+tok}});}catch(e){}
          await showCustomerHome(me,tok);}],outBtn]);
+    const cur=st.settings||{},ro=st.risk_options||{};
+    const opts=Object.keys(ro).map(k=>'<option value="'+k+'"'+(cur.risk_level===k?' selected':'')+'>'+ro[k].label+'</option>').join('');
+    const live=!!st.customer_engine;
+    qs('#panelText').innerHTML=who+'Your Alpaca '+(st.env||'paper')+' account is connected.'
+      +'<br><br><b>Risk level</b><br><select id="riskSel" style="margin-top:6px;padding:8px;border-radius:8px;background:#0b0f16;color:#f4efe2;border:1px solid #f2bf4b;width:100%">'+opts+'</select>'
+      +'<div id="riskDesc" style="font-size:.85em;opacity:.8;margin-top:6px"></div>'
+      +'<br><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="engSw" '+(cur.engine_enabled?'checked ':'')+(live?'':'disabled ')+'> <b>Automatic trading</b></label>'
+      +'<div style="font-size:.85em;opacity:.8;margin-top:6px">'+(live?'Trades only in your paper account. You can switch it off any time.':'Automatic trading for customer accounts is not available yet. Your risk level is saved and trading stays off.')+'</div>'
+      +'<div id="setMsg" style="margin-top:8px;font-size:.9em"></div>';
+    const desc=()=>{const k=qs('#riskSel').value;qs('#riskDesc').textContent=(ro[k]&&ro[k].description)||'';};desc();
+    const save=async(body)=>{const m=qs('#setMsg');m.textContent='Saving…';
+      try{const r=await fetch(BACKEND_URL+'/api/me/settings',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const j=await r.json().catch(()=>({}));
+        if(r.ok){m.textContent='Saved.';}else{m.textContent=j.message||j.error||'Could not save.';if('engine_enabled' in body)qs('#engSw').checked=!body.engine_enabled;}
+      }catch(e){m.textContent='Could not reach the server.';}};
+    qs('#riskSel').addEventListener('change',()=>{desc();save({risk_level:qs('#riskSel').value});});
+    qs('#engSw').addEventListener('change',e=>save({engine_enabled:e.target.checked}));
     return;
   }
   const msg=flag==='cancelled'?'Connection cancelled. You can try again any time. ':flag==='error'?'We could not complete the connection. Please try again. ':'';
