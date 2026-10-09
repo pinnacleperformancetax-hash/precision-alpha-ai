@@ -692,7 +692,10 @@ async function showCustomerHome(me,tok){
       +'<div id="riskDesc" style="font-size:.85em;opacity:.8;margin-top:6px"></div>'
       +'<br><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="engSw" '+(cur.engine_enabled?'checked ':'')+(live?'':'disabled ')+'> <b>Automatic trading</b></label>'
       +'<div style="font-size:.85em;opacity:.8;margin-top:6px">'+(live?'Trades only in your paper account. You can switch it off any time.':'Automatic trading for customer accounts is not available yet. Your risk level is saved and trading stays off.')+'</div>'
-      +'<div id="setMsg" style="margin-top:8px;font-size:.9em"></div>';
+      +'<div id="setMsg" style="margin-top:8px;font-size:.9em"></div>'
+      +'<hr style="border:0;border-top:1px solid rgba(242,191,75,.3);margin:14px 0">'
+      +'<div id="custOv" style="font-size:.9em">Loading your account…</div>';
+    loadCustOverview(tok);
     const desc=()=>{const k=qs('#riskSel').value;qs('#riskDesc').textContent=(ro[k]&&ro[k].description)||'';};desc();
     const save=async(body)=>{const m=qs('#setMsg');m.textContent='Saving…';
       try{const r=await fetch(BACKEND_URL+'/api/me/settings',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -713,6 +716,28 @@ async function showCustomerHome(me,tok){
   qs('#panelText').innerHTML=(msg?'<b>'+msg+'</b><br><br>':'')
     +'<b>Authorize Precision Alpha AI.</b> By allowing Precision Alpha AI to access your Alpaca account, you are granting Precision Alpha AI access to your account information and authorization to place transactions in your account at your direction. Alpaca does not warrant or guarantee that Precision Alpha AI will work as advertised or expected. Before authorizing, <a href="terms.html" target="_blank" style="color:#f2bf4b">learn more about Precision Alpha AI</a> and read our <a href="privacy.html" target="_blank" style="color:#f2bf4b">Privacy Policy</a>.'
     +'<br><br>Paper (simulated-money) accounts only. No real money is used.';
+}
+async function loadCustOverview(tok){
+  const box=qs('#custOv'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money=n=>(n<0?'-':'')+'$'+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const col=n=>n>0?'#6fd98f':n<0?'#ff7b7b':'inherit';
+  try{
+    const r=await fetch(BACKEND_URL+'/api/me/overview',{headers:{Authorization:'Bearer '+tok}});
+    const j=await r.json().catch(()=>({}));
+    if(!qs('#custOv'))return;
+    if(!r.ok){box.textContent=j.error||'Could not load your account.';return;}
+    let h='<div style="display:flex;gap:18px;flex-wrap:wrap"><div><div style="opacity:.7">Account value</div><b style="font-size:1.2em">'+money(j.equity)+'</b></div>'
+      +'<div><div style="opacity:.7">Today</div><b style="font-size:1.2em;color:'+col(j.day_pl)+'">'+money(j.day_pl)+'</b></div></div>';
+    h+='<div style="margin-top:12px"><b>Open positions</b></div>';
+    if(!j.positions.length){h+='<div style="opacity:.7;margin-top:4px">None right now.</div>';}
+    else{h+='<table style="width:100%;margin-top:4px;border-collapse:collapse"><tr style="opacity:.7;text-align:left"><th>Stock</th><th>Qty</th><th>Entry</th><th>P&amp;L</th></tr>'
+      +j.positions.map(p=>'<tr><td>'+esc(p.symbol)+'</td><td>'+p.qty+'</td><td>$'+p.entry+'</td><td style="color:'+col(p.pl)+'">'+money(p.pl)+'</td></tr>').join('')+'</table>';}
+    h+='<div style="margin-top:12px"><b>Recent activity</b></div>';
+    h+=j.feed.length?'<div style="margin-top:4px;line-height:1.5">'+j.feed.map(esc).join('<br>')+'</div>':'<div style="opacity:.7;margin-top:4px">Nothing yet. Activity shows here once automatic trading is on.</div>';
+    box.innerHTML=h;
+    setTimeout(()=>loadCustOverview(tok),60000);
+  }catch(e){if(qs('#custOv'))box.textContent='Could not reach the server.';}
 }
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
