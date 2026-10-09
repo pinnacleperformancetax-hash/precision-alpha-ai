@@ -662,11 +662,40 @@ async function afterSignIn(){
       qs('#userEmail').textContent=me.email||'';qs('#userEmail').style.display='inline';
       hideGate();await startApp();return;
     }
-    showPanel('You are signed in',(me.email?me.email+'. ':'')+'Your account is created. Connecting your own Alpaca trading account is coming soon, and we will email you when it is ready.',[['Sign out',signOutNow]]);
+    await showCustomerHome(me,tok);
     return;
   }
   const why=status===404?'The server has not been updated for sign-in yet.':'The server could not confirm your sign-in.';
   showPanel('Could not confirm sign-in',why+' Try again, or sign out and sign back in.',[['Try again',afterSignIn],['Sign out',signOutNow]]);
+}
+async function showCustomerHome(me,tok){
+  const who=(me&&me.email?me.email+'. ':'');
+  const outBtn=['Sign out',signOutNow];
+  let st=null;
+  try{const r=await fetch(BACKEND_URL+'/api/alpaca/status',{headers:{Authorization:'Bearer '+tok}});st=await r.json().catch(()=>null);}catch(e){}
+  const flag=new URLSearchParams(location.search).get('alpaca');
+  if(flag){history.replaceState(null,'',location.pathname);}
+  if(!st||!st.configured){
+    showPanel('You are signed in',who+'Your account is created. Connecting your own Alpaca trading account is coming soon, and we will email you when it is ready.',[outBtn]);return;
+  }
+  if(st.connected){
+    showPanel('Alpaca account connected',who+'Your Alpaca '+(st.env||'paper')+' account is connected. Trading for customer accounts is being set up and will turn on only after you choose your settings.',
+      [['Disconnect Alpaca',async()=>{
+         if(!confirm('Disconnect your Alpaca account from Precision Alpha AI?'))return;
+         try{await fetch(BACKEND_URL+'/api/alpaca/disconnect',{method:'POST',headers:{Authorization:'Bearer '+tok}});}catch(e){}
+         await showCustomerHome(me,tok);}],outBtn]);
+    return;
+  }
+  const msg=flag==='cancelled'?'Connection cancelled. You can try again any time. ':flag==='error'?'We could not complete the connection. Please try again. ':'';
+  showPanel('Connect your Alpaca account',msg,[['Connect with Alpaca (paper account)',async()=>{
+      try{const r=await fetch(BACKEND_URL+'/api/alpaca/connect',{method:'POST',headers:{Authorization:'Bearer '+tok}});const j=await r.json();
+          if(j&&j.url){location.href=j.url;return;}
+          showPanel('Not available yet',(j&&j.message)||'Connecting is not available right now.',[outBtn]);
+      }catch(e){showPanel('Could not reach the server','Please try again in a moment.',[['Try again',()=>showCustomerHome(me,tok)],outBtn]);}
+    }],outBtn]);
+  qs('#panelText').innerHTML=(msg?'<b>'+msg+'</b><br><br>':'')
+    +'<b>Authorize Precision Alpha AI.</b> By allowing Precision Alpha AI to access your Alpaca account, you are granting Precision Alpha AI access to your account information and authorization to place transactions in your account at your direction. Alpaca does not warrant or guarantee that Precision Alpha AI will work as advertised or expected. Before authorizing, <a href="terms.html" target="_blank" style="color:#f2bf4b">learn more about Precision Alpha AI</a> and read our <a href="privacy.html" target="_blank" style="color:#f2bf4b">Privacy Policy</a>.'
+    +'<br><br>Paper (simulated-money) accounts only. No real money is used.';
 }
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
