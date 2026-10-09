@@ -427,6 +427,10 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div id="riskOverrides" style="margin-top:20px"></div>
       <p class="hint" style="margin-top:12px">Always on at every level: no new buys while the overall market is trending down, no shorting, and a daily loss limit. Switching levels changes the stop-loss for positions you already hold.</p>
     </div>
+    <div class="panel" id="livePanel">
+      <div class="panel-title">💵 LIVE MONEY ACCOUNT <span class="hint">(your own real-money Alpaca account, separate from paper)</span></div>
+      <div id="liveBody" style="font-size:14px;line-height:1.6">Loading…</div>
+    </div>
     <div class="panel">
       <div class="panel-title">📡 LIVE SCAN FEED <span class="hint">(server scan log)</span></div>
       <div id="autoFeed" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
@@ -690,7 +694,7 @@ async function showCustomerHome(me,tok){
     qs('#panelText').innerHTML=who+'Your Alpaca '+(st.env||'paper')+' account is connected.'
       +'<br><br><b>Risk level</b><br><select id="riskSel" style="margin-top:6px;padding:8px;border-radius:8px;background:#0b0f16;color:#f4efe2;border:1px solid #f2bf4b;width:100%">'+opts+'</select>'
       +'<div id="riskDesc" style="font-size:.85em;opacity:.8;margin-top:6px"></div>'
-      +'<br><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="engSw" '+(cur.engine_enabled?'checked ':'')+(live?'':'disabled ')+'> <b>Automatic trading</b></label>'
+      +'<br><label style="display:flex;gap:8px;align-items:center;justify-content:flex-start;text-align:left"><input type="checkbox" id="engSw" style="width:auto;flex:none;margin:0" '+(cur.engine_enabled?'checked ':'')+(live?'':'disabled ')+'> <b>Automatic trading</b></label>'
       +'<div style="font-size:.85em;opacity:.8;margin-top:6px">'+(live?'Trades only in your paper account. You can switch it off any time.':'Automatic trading for customer accounts is not available yet. Your risk level is saved and trading stays off.')+'</div>'
       +'<div id="setMsg" style="margin-top:8px;font-size:.9em"></div>'
       +'<hr style="border:0;border-top:1px solid rgba(242,191,75,.3);margin:14px 0">'
@@ -739,6 +743,28 @@ async function loadCustOverview(tok){
     setTimeout(()=>loadCustOverview(tok),60000);
   }catch(e){if(qs('#custOv'))box.textContent='Could not reach the server.';}
 }
+async function loadLivePanel(){
+  const box=qs('#liveBody'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money=n=>(n<0?'-':'')+'$'+Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  try{
+    const j=await backend('/api/live/status');
+    if(!j||j.enabled===undefined){box.textContent='Not available.';return;}
+    if(!j.enabled||!j.keys_set){box.innerHTML='<b>Not switched on.</b> Live trading is off. Nothing real is being traded. (To enable: add your live keys and LIVE_ENGINE=1 in Render.)';return;}
+    const mode=j.paused?'<b style="color:#ff7b7b">PAUSED</b>':(j.practice_mode?'<b style="color:#f2bf4b">PRACTICE MODE</b> (decides and logs, sends no real orders)':'<b style="color:#6fd98f">LIVE — real orders</b>');
+    let h=mode+'<br>Risk level: '+esc(j.risk_level)+' · Max invested '+money(j.caps.max_invested)+' · Max per stock '+money(j.caps.max_position)+' · Max share price '+money(j.caps.max_price)+' · Daily loss limit '+money(j.caps.max_daily_loss);
+    if(j.last_error)h+='<br><span style="color:#ff7b7b">'+esc(j.last_error)+'</span>';
+    const a=j.account;
+    if(a&&a.equity!==undefined){h+='<br><br>Account value <b>'+money(a.equity)+'</b> · Today <b>'+money(a.day_pl)+'</b> · Open positions: '+(a.positions.length?a.positions.map(p=>esc(p.symbol)+' x'+p.qty+' ('+money(p.pl)+')').join(', '):'none');}
+    else if(a&&a.token_invalid){h+='<br><span style="color:#ff7b7b">Alpaca rejected the live keys.</span>';}
+    else{h+='<br>Could not read the live account right now.';}
+    h+='<br><br><button id="livePauseBtn" class="dark" style="margin-right:8px">'+(j.paused?'▶ Resume live trading':'⏸ Pause live trading')+'</button>';
+    if(j.feed&&j.feed.length)h+='<div style="margin-top:10px"><b>Recent live activity</b><br>'+j.feed.map(esc).join('<br>')+'</div>';
+    box.innerHTML=h;
+    qs('#livePauseBtn').onclick=async()=>{try{await backend(j.paused?'/api/live/resume':'/api/live/pause','POST');}catch(e){}loadLivePanel();};
+  }catch(e){box.textContent='Could not reach the server.';}
+}
+setTimeout(loadLivePanel,3000);setInterval(loadLivePanel,30000);
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
   const tok=await getAccessToken();
