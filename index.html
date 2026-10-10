@@ -1142,12 +1142,15 @@ async function loadProfitLedger(){
     const tone=v=>(v==null||v>=0)?'':'loss';
     const vt=d.vault||{};
     window.__vaultState=vt;
-    const hLabel={sweep:'Swept into vault',take_out:'Taken out',to_trading:'Moved to trading'};
+    const hLabel={sweep:'Swept into vault',take_out:'Taken out',to_trading:'Moved to trading',pay_taxes:'Paid taxes from set-aside'};
+    const taxOn=(vt.tax_pct>0)||(vt.tax_reserved>0);
     const histRows=(vt.history&&vt.history.length)?`<table class="tbl" style="margin-top:14px"><thead><tr><th>When</th><th>What</th><th>Amount</th></tr></thead><tbody>${vt.history.map(h=>`<tr><td style="color:var(--muted);font-size:11px">${h.date.slice(5)} ${h.time}</td><td>${hLabel[h.type]||h.type}${h.note?` <span style="color:var(--muted);font-size:11px">(${h.note})</span>`:''}</td><td>${fmtMoney(h.amount)}</td></tr>`).join('')}</tbody></table>`:'';
     const vaultHtml=`<div class="panel-title" style="font-size:13px;margin:22px 0 10px">🏦 Trading account vs. vault <span class="hint">(bookkeeping only &mdash; no money moves at Alpaca)</span></div>
       <div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:0">
         <div class="sum-item"><span>Trading account (at risk)</span><strong class="neutral">${money(vt.trading_balance)}</strong></div>
-        <div class="sum-item"><span>Vault (set aside)</span><strong>${money(vt.vault_balance)}</strong></div>
+        ${taxOn?`<div class="sum-item" style="border-color:var(--gold)"><span>Vault: yours to keep</span><strong>${money(vt.keep_balance)}</strong></div>
+        <div class="sum-item" style="border-color:#6fa8ff"><span>Vault: tax set-aside</span><strong style="color:#8ec0ff">${money(vt.tax_reserved)}</strong></div>
+        <div class="sum-item"><span>Vault total</span><strong>${money(vt.vault_balance)}</strong></div>`:`<div class="sum-item"><span>Vault (set aside)</span><strong>${money(vt.vault_balance)}</strong></div>`}
         <div class="sum-item"><span>Invested now</span><strong class="neutral">${money(vt.invested)}</strong></div>
         <div class="sum-item"><span>Room left to invest</span><strong class="${tone(vt.room_left)}">${money(vt.room_left)}</strong></div>
       </div>
@@ -1155,11 +1158,13 @@ async function loadProfitLedger(){
         <div style="flex:1;min-width:170px"><label>Pull money out of the vault ($)</label><input type="number" id="vaultAmt" min="0.01" step="10" placeholder="Amount" style="margin:0"/></div>
         <button class="dark" style="margin:0;padding:11px 16px" onclick="vaultMove('take_out')">Take out</button>
         <button class="dark" style="margin:0;padding:11px 16px" onclick="vaultMove('to_trading')">Move to trading account</button>
+        ${vt.tax_reserved>0?`<button class="dark" style="margin:0;padding:11px 16px" onclick="vaultMove('pay_taxes')">Pay taxes from set-aside</button>`:''}
       </div>
-      <p class="hint" style="margin:8px 0 0">&ldquo;Take out&rdquo; records that you spent or withdrew it &mdash; it doesn&rsquo;t touch your Alpaca account. With real money, you&rsquo;d withdraw it from the brokerage yourself. &ldquo;Move to trading account&rdquo; puts it back at risk.</p>
+      <p class="hint" style="margin:8px 0 0">&ldquo;Take out&rdquo; records that you spent or withdrew it &mdash; it doesn&rsquo;t touch your Alpaca account. With real money, you&rsquo;d withdraw it from the brokerage yourself. &ldquo;Move to trading account&rdquo; puts it back at risk.${taxOn?' Money set aside for taxes can only leave through &ldquo;Pay taxes&rdquo;.':''}</p>
       ${histRows}
       <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:20px">
         <div style="flex:1;min-width:190px"><label>Trading account starting amount ($)</label><input type="number" id="vaultStart" min="1000" step="500" value="${vt.trading_start==null?20000:vt.trading_start}" style="margin:0"/></div>
+        <div style="min-width:170px"><label>Set aside for taxes (% of each gain)</label><input type="number" id="vaultTax" min="0" max="60" step="1" value="${vt.tax_pct==null?0:vt.tax_pct}" style="margin:0"/></div>
         <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultCap" ${vt.cap_enabled?'checked':''} style="width:auto;margin:0"/> Never invest more than the trading balance</label>
         <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--text);font-weight:600"><input type="checkbox" id="vaultRefill" ${vt.refill_first?'checked':''} style="width:auto;margin:0"/> Refill losses from profit before sweeping</label>
         <button class="gold" style="padding:11px 20px;margin-bottom:12px" onclick="saveVault()">Save</button>
@@ -1177,25 +1182,69 @@ async function loadProfitLedger(){
       ${vaultHtml}
       ${rows?`<table class="tbl" style="margin-top:16px"><thead><tr><th>When</th><th>Stock</th><th>Qty</th><th>Entry &rarr; Sold</th><th>Result</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table>`:'<p style="color:var(--muted);font-size:13px;margin:14px 0 0">No sells recorded yet since tracking began.</p>'}
       <p class="hint" style="margin-top:12px">Calculated from your Alpaca fill history (oldest shares sold first), so it includes every sell &mdash; engine and manual &mdash; and survives restarts and redeploys. Counts sells from the tracking-start date above.</p>
-      ${unm}`;
+      ${unm}
+      <div id="taxSummary" style="margin-top:22px"></div>`;
+    loadTaxSummary();
   }catch(e){el.innerHTML='<p style="color:var(--muted);font-size:13px">Could not load the profit ledger.</p>';}
+}
+window.__taxSrc=window.__taxSrc||'paper';
+async function loadTaxSummary(){
+  const box=qs('#taxSummary');if(!box)return;
+  const money=v=>v==null?'—':fmtMoney(v);
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const year=new Date().getFullYear();
+  const head=`<div class="panel-title" style="font-size:13px;margin:0 0 10px">🧾 Tax summary ${year} <span class="hint">(information only &mdash; not tax advice)</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="${window.__taxSrc==='paper'?'gold':'dark'}" style="margin:0;padding:7px 14px" onclick="window.__taxSrc='paper';loadTaxSummary()">Paper account (simulated)</button><button class="${window.__taxSrc==='live'?'gold':'dark'}" style="margin:0;padding:7px 14px" onclick="window.__taxSrc='live';loadTaxSummary()">Live account</button></div>`;
+  box.innerHTML=head+'<p class="hint">Loading…</p>';
+  try{
+    const r=await backend('/api/tax/report?year='+year+'&source='+window.__taxSrc);
+    window.__taxRows=r.rows||[];window.__taxYear=year;window.__taxSrcLoaded=r.source;
+    const t=(x)=>`<td>${money(x.gains)}</td><td>${money(x.losses)}</td><td><strong>${money(x.net)}</strong></td>`;
+    box.innerHTML=head+`<table class="tbl"><thead><tr><th>Type</th><th>Gains</th><th>Losses</th><th>Net</th></tr></thead><tbody>
+      <tr><td>Short-term (held a year or less)</td>${t(r.short_term)}</tr>
+      <tr><td>Long-term (held over a year)</td>${t(r.long_term)}</tr>
+      <tr><td><strong>Total</strong></td><td></td><td></td><td><strong>${money(r.net)}</strong></td></tr></tbody></table>
+      <div class="sum-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:12px">
+        <div class="sum-item"><span>Estimated tax at ${r.rate_pct}%</span><strong>${money(r.estimated_tax)}</strong></div>
+        <div class="sum-item"><span>Set aside so far</span><strong>${r.set_aside_so_far==null?'n/a':money(r.set_aside_so_far)}</strong></div>
+        <div class="sum-item"><span>Possible wash sales</span><strong class="${r.possible_wash_sales?'loss':'neutral'}">${r.possible_wash_sales}</strong></div>
+      </div>
+      <div style="margin-top:12px"><button class="dark" style="margin:0;padding:9px 16px" onclick="downloadTaxCsv()">⬇ Download report (CSV)</button></div>
+      <p class="hint" style="margin:10px 0 0">The estimate multiplies the year's net gain by your set-aside percentage. If gains minus losses is negative it shows $0. Wash sales are only flagged, not adjusted: a loss may be disallowed if you bought the same stock within 30 days before or after the sale, so show the CSV to your tax preparer. ${r.source==='paper'?'<strong>This is the paper account, so the numbers are simulated and create no real tax.</strong> ':''}Sales are counted from ${esc(r.history_from)}${r.unmatched_sell_shares?`; ${r.unmatched_sell_shares} sold share(s) had no earlier buy on file and are left out`:''}.</p>`;
+  }catch(e){
+    box.innerHTML=head+`<p class="hint">${window.__taxSrc==='live'?'The live account is not switched on yet, so there is nothing to report.':'Could not load the tax summary.'}</p>`;
+  }
+}
+function downloadTaxCsv(){
+  const rows=window.__taxRows||[];
+  if(!rows.length){toast('No sales to export yet','warn');return;}
+  const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const lines=[['Symbol','Quantity','Date acquired','Date sold','Proceeds','Cost basis','Gain or loss','Term','Possible wash sale'].map(q).join(',')]
+    .concat(rows.map(r=>[r.symbol,r.qty,r.acquired,r.sold,r.proceeds.toFixed(2),r.cost.toFixed(2),r.gain.toFixed(2),r.term,r.possible_wash_sale?'yes':'no'].map(q).join(',')));
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='precision-alpha-tax-'+(window.__taxSrcLoaded||'paper')+'-'+(window.__taxYear||'')+'.csv';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 async function vaultMove(action){
   const amount=parseFloat(qs('#vaultAmt').value);
   if(!(amount>0)){toast('Enter an amount first','warn');return;}
   const msg=action==='take_out'
     ?`Take ${fmtMoney(amount)} out of the vault?\n\nThis records it as spent or withdrawn. It does not move money at Alpaca.`
+    :action==='pay_taxes'
+    ?`Record ${fmtMoney(amount)} of your tax set-aside as paid?\n\nThis only updates your records. It does not move money at Alpaca or pay the IRS.`
     :`Move ${fmtMoney(amount)} from the vault to the trading account?\n\nIt will be at risk again.`;
   if(!confirm(msg))return;
   try{
     await backend('/api/vault/withdraw','POST',{action,amount});
-    toast(action==='take_out'?'Taken out of the vault':'Moved to the trading account','success');
+    toast(action==='take_out'?'Taken out of the vault':action==='pay_taxes'?'Recorded as paid from the tax set-aside':'Moved to the trading account','success');
     loadProfitLedger();
   }catch(e){toast('Could not move money: '+e.message,'error');}
 }
 async function saveVault(){
-  const body={trading_start:parseFloat(qs('#vaultStart').value),cap_enabled:qs('#vaultCap').checked,refill_first:qs('#vaultRefill').checked};
+  const body={trading_start:parseFloat(qs('#vaultStart').value),tax_pct:parseFloat(qs('#vaultTax').value)||0,cap_enabled:qs('#vaultCap').checked,refill_first:qs('#vaultRefill').checked};
   if(!(body.trading_start>=1000)){toast('Enter a starting amount of at least $1,000','warn');return;}
+  if(!(body.tax_pct>=0&&body.tax_pct<=60)){toast('Tax percentage must be between 0 and 60','warn');return;}
   const wasOn=window.__vaultState&&window.__vaultState.cap_enabled;
   if(body.cap_enabled&&!wasOn&&!confirm('Turning the cap on means the engine will skip any buy that would push total invested above the trading balance. Continue?'))return;
   try{await backend('/api/vault/set','POST',body);toast('Vault settings saved','success');loadProfitLedger();}
