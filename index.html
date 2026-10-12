@@ -784,6 +784,9 @@ async function loadLivePanel(){
     if(a&&a.equity!==undefined){h+='<br><br>Account value <b>'+money(a.equity)+'</b> · Today <b>'+money(a.day_pl)+'</b> · Open positions: '+(a.positions.length?a.positions.map(p=>esc(p.symbol)+' x'+p.qty+' ('+money(p.pl)+')').join(', '):'none');}
     else if(a&&a.token_invalid){h+='<br><span style="color:#ff7b7b">Alpaca rejected the live keys.</span>';}
     else{h+='<br>Could not read the live account right now.';}
+    const at=j.account_type;
+    if(at){h+='<br>Account type: <b>'+(at.kind==='cash'?'Cash account':'Margin account (x'+at.multiplier+')')+'</b>'+(at.kind==='margin'?' · day trades used: '+(at.daytrade_count??'?')+(at.pdt?' · flagged pattern day trader':''):'');}
+    if(j.practice_mode&&j.sim){h+='<br><br><b>Pretend holdings (practice mode)</b><br>Pretend cash '+money(j.sim.cash)+' · Pretend profit so far '+money(j.sim.realized)+' · '+(j.sim.positions.length?j.sim.positions.map(p=>esc(p.symbol)+' x'+p.qty+' @ '+money(p.avg)).join(', '):'no pretend positions');}
     h+='<br><br><button id="livePauseBtn" class="dark" style="margin-right:8px">'+(j.paused?'▶ Resume live trading':'⏸ Pause live trading')+'</button>';
     if(j.feed&&j.feed.length)h+='<div style="margin-top:10px"><b>Recent live activity</b><br>'+j.feed.map(esc).join('<br>')+'</div>';
     box.innerHTML=h;
