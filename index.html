@@ -788,9 +788,12 @@ async function loadLivePanel(){
     const at=j.account_type;
     if(at){h+='<br>Account type: <b>'+(at.kind==='cash'?'Cash account':'Margin account (x'+at.multiplier+')')+'</b>'+(at.kind==='margin'?' · day trades used: '+(at.daytrade_count??'?')+(at.pdt?' · flagged pattern day trader':''):'');}
     if(j.practice_mode&&j.sim){h+='<br><br><b>Pretend holdings (practice mode)</b><br>Pretend cash '+money(j.sim.cash)+' · Pretend profit so far '+money(j.sim.realized)+' · '+(j.sim.positions.length?j.sim.positions.map(p=>esc(p.symbol)+' x'+p.qty+' @ '+money(p.avg)).join(', '):'no pretend positions');}
-    h+='<br><br><button id="livePauseBtn" class="dark" style="margin-right:8px">'+(j.paused?'▶ Resume live trading':'⏸ Pause live trading')+'</button>';
+    const bk=j.breaker;
+    if(bk){h+='<br><br><b>Circuit breaker</b>: '+(bk.tripped?'<b style="color:#ff7b7b">TRIPPED</b> (account fell to '+money(bk.equity_at_trip)+', '+bk.max_drawdown_pct+'% or more below its high of '+money(bk.peak)+'). No new buys until you resume.':'<b style="color:#6fd98f">OK</b> · stops new buys if the account falls '+bk.max_drawdown_pct+'% below its high'+(bk.peak?' of '+money(bk.peak):''))+(bk.reset_pending?' · reset will apply on the next check':'');}
+    h+='<br><br>'+((bk&&bk.tripped&&!bk.reset_pending)?'<button id="liveBreakerBtn" class="dark" style="margin-right:8px">✅ Resume buying</button>':'')+'<button id="livePauseBtn" class="dark" style="margin-right:8px">'+(j.paused?'▶ Resume live trading':'⏸ Pause live trading')+'</button>';
     if(j.feed&&j.feed.length)h+='<div style="margin-top:10px"><b>Recent live activity</b><br>'+j.feed.map(esc).join('<br>')+'</div>';
     box.innerHTML=h;
+    const bb=qs('#liveBreakerBtn');if(bb)bb.onclick=async()=>{if(!confirm('Allow new buys again? The breaker will start a fresh high from the current account value.'))return;try{await backend('/api/live/breaker/reset','POST');}catch(e){}loadLivePanel();};
     qs('#livePauseBtn').onclick=async()=>{try{await backend(j.paused?'/api/live/resume':'/api/live/pause','POST');}catch(e){}loadLivePanel();};
   }catch(e){box.textContent='Could not reach the server.';}
 }
