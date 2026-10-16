@@ -779,7 +779,7 @@ async function loadLivePanel(){
     if(!j||j.enabled===undefined){box.textContent='Not available.';return;}
     if(!j.enabled||!j.keys_set){box.innerHTML='<b>Not switched on.</b> Live trading is off. Nothing real is being traded. (To enable: add your live keys and LIVE_ENGINE=1 in Render.)';return;}
     const mode=j.paused?'<b style="color:#ff7b7b">PAUSED</b>':(j.practice_mode?'<b style="color:#f2bf4b">PRACTICE MODE</b> (decides and logs, sends no real orders)':'<b style="color:#6fd98f">LIVE — real orders</b>');
-    let h=mode+'<br>Risk level: '+esc(j.risk_level)+' · Max invested '+money(j.caps.max_invested)+' · Max per stock '+money(j.caps.max_position)+' · Max share price '+money(j.caps.max_price)+' · Daily loss limit '+money(j.caps.max_daily_loss)+(j.min_hold_minutes?' · Minimum hold before an AI sell: '+j.min_hold_minutes+' min':'');
+    let h=mode+'<br>Risk level: '+esc(j.risk_level)+' · Max invested '+money(j.caps.max_invested)+' · Max per stock '+money(j.caps.max_position)+' · Max share price '+money(j.caps.max_price)+' · Daily loss limit '+money(j.caps.max_daily_loss)+(j.min_hold_minutes?' · Minimum hold before an AI sell: '+j.min_hold_minutes+' min':'')+(j.no_buy_last_minutes?' · No new buys in the last '+j.no_buy_last_minutes+' min before the close':'');
     if(j.last_error)h+='<br><span style="color:#ff7b7b">'+esc(j.last_error)+'</span>';
     const a=j.account;
     if(a&&a.equity!==undefined){h+='<br><br>Account value <b>'+money(a.equity)+'</b> · Today <b>'+money(a.day_pl)+'</b> · Open positions: '+(a.positions.length?a.positions.map(p=>esc(p.symbol)+' x'+p.qty+' ('+money(p.pl)+')').join(', '):'none');}
