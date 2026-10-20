@@ -436,6 +436,15 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div class="panel-title">💵 LIVE MONEY ACCOUNT <span class="hint">(your own real-money Alpaca account, separate from paper)</span></div>
       <div id="liveBody" style="font-size:14px;line-height:1.6">Loading…</div>
     </div>
+    <div class="panel" id="scorePanel">
+      <div class="panel-title">📈 TRACK RECORD SCORECARD <span class="hint">(paper account vs the S&amp;P 500 — the evidence needed before scaling)</span></div>
+      <div id="scoreBody" style="font-size:14px;line-height:1.6">Loading…</div>
+      <div style="margin-top:14px;border-top:1px solid var(--border,#333);padding-top:12px">
+        <b>🧪 Backtest</b> <span class="hint">(replays the chart-based rules on ~2 years of past prices; sends no orders)</span><br>
+        <button id="btRunBtn" class="dark" style="margin:8px 0">Run backtest</button>
+        <div id="btBody" style="font-size:13px;line-height:1.6"></div>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel-title">📡 LIVE SCAN FEED <span class="hint">(server scan log)</span></div>
       <div id="autoFeed" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
@@ -798,6 +807,46 @@ async function loadLivePanel(){
   }catch(e){box.textContent='Could not reach the server.';}
 }
 setTimeout(loadLivePanel,3000);setInterval(loadLivePanel,30000);
+async function loadScorecard(){
+  const box=qs('#scoreBody'); if(!box)return;
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(2)+'%');
+  const money=n=>(n<0?'-':'')+'$'+Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  try{
+    const j=await backend('/api/scorecard');
+    if(!j||j.error){box.textContent='Not available right now.';return;}
+    if(!j.days){box.textContent='Not enough history yet.';return;}
+    const t=j.trades||{};
+    let h='<b>'+esc(j.start_date)+' to '+esc(j.end_date)+'</b> ('+j.days+' trading days)<br>'+
+      'Account: <b>'+money(j.start_equity)+' → '+money(j.end_equity)+'</b> ('+pct(j.return_pct)+')'+
+      (j.spy_return_pct!=null?' · S&amp;P 500 same days: <b>'+pct(j.spy_return_pct)+'</b> · You vs S&amp;P: <b>'+pct(j.vs_spy_pct)+'</b>':'')+
+      '<br>Worst drop from a high: <b>'+j.max_drawdown_pct+'%</b> · Profitable days: <b>'+j.profitable_days_pct+'%</b> · Best day '+pct(j.best_day_pct)+' · Worst day '+pct(j.worst_day_pct);
+    if(t.closed_trades){h+='<br><br>Closed trades: <b>'+t.closed_trades+'</b> · Win rate <b>'+t.win_rate_pct+'%</b> · Avg win '+money(t.avg_win)+' · Avg loss '+money(t.avg_loss)+' · Profit factor <b>'+(t.profit_factor==null?'—':t.profit_factor)+'</b> · Avg per trade '+money(t.expectancy_per_trade)+(t.avg_hold_minutes!=null?' · Avg hold '+t.avg_hold_minutes+' min':'');}
+    const m=j.monthly_pct||{};const ms=Object.keys(m);
+    if(ms.length)h+='<br><br><b>By month:</b> '+ms.map(k=>esc(k)+' '+pct(m[k])).join(' · ');
+    if(j.checks&&j.checks.length)h+='<br><br><b>Ready to scale? (checklist)</b><br>'+j.checks.map(c=>(c.ok?'✅ ':'⬜ ')+esc(c.name)+' — '+esc(c.detail)).join('<br>');
+    h+='<br><span class="hint">Paper account only. A short record proves little; the checklist is a bar to reach, not a prediction.</span>';
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+}
+setTimeout(loadScorecard,4000);setInterval(loadScorecard,300000);
+async function runBacktest(){
+  const box=qs('#btBody'),btn=qs('#btRunBtn'); if(!box)return;
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  btn.disabled=true;box.textContent='Running… this can take up to a minute.';
+  try{
+    const j=await backend('/api/backtest');
+    if(!j||j.error){box.textContent='Could not run: '+esc((j&&j.error)||'no response');btn.disabled=false;return;}
+    const row=(label,r)=>{if(!r||!r.days)return '';const t=r.trades||{};return '<div>'+label+': return <b>'+pct(r.return_pct)+'</b>'+(r.spy_return_pct!=null?' vs S&amp;P '+pct(r.spy_return_pct):'')+' · worst drop '+r.max_drawdown_pct+'% · trades '+(t.closed_trades||0)+(t.win_rate_pct!=null?' · win rate '+t.win_rate_pct+'%':'')+(t.profit_factor!=null?' · profit factor '+t.profit_factor:'')+'</div>';};
+    let h='<span class="hint">'+j.symbols+' stocks, '+j.days+' trading days</span>';
+    j.variants.forEach(v=>{const r=v.result;h+='<div style="margin-top:10px"><b>'+esc(v.name)+'</b>'+row('All data',r.full)+(r.in_sample?row('First 70% (rules were looked at here)',r.in_sample)+row('Last 30% (the fair test, after '+esc(r.split_date)+')',r.out_of_sample):'')+'</div>';});
+    h+='<div class="hint" style="margin-top:10px">'+j.notes.map(esc).join('<br>')+'<br>A strategy only counts if the last-30% line also looks good. Past results do not predict future ones.</div>';
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const b=qs('#btRunBtn');if(b)b.onclick=runBacktest;},1000);
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
   const tok=await getAccessToken();
