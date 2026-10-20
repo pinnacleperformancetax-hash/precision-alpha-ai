@@ -819,7 +819,7 @@ async function loadScorecard(){
     const t=j.trades||{};
     let h='<b>'+esc(j.start_date)+' to '+esc(j.end_date)+'</b> ('+j.days+' trading days)<br>'+
       'Account: <b>'+money(j.start_equity)+' → '+money(j.end_equity)+'</b> ('+pct(j.return_pct)+')'+
-      (j.spy_return_pct!=null?' · S&amp;P 500 same days: <b>'+pct(j.spy_return_pct)+'</b> · You vs S&amp;P: <b>'+pct(j.vs_spy_pct)+'</b>':'')+
+      (j.spy_matched_pct!=null?' · S&amp;P with the same dollars invested on the same days: <b>'+pct(j.spy_matched_pct)+'</b> · You vs that: <b>'+pct(j.vs_spy_matched_pct)+'</b>':'')+(j.spy_return_pct!=null?' <span class="hint">(S&amp;P fully invested, all days: '+pct(j.spy_return_pct)+')</span>':'')+
       '<br>Worst drop from a high: <b>'+j.max_drawdown_pct+'%</b> · Profitable days: <b>'+j.profitable_days_pct+'%</b> · Best day '+pct(j.best_day_pct)+' · Worst day '+pct(j.worst_day_pct);
     if(t.closed_trades){h+='<br><br>Closed trades: <b>'+t.closed_trades+'</b> · Win rate <b>'+t.win_rate_pct+'%</b> · Avg win '+money(t.avg_win)+' · Avg loss '+money(t.avg_loss)+' · Profit factor <b>'+(t.profit_factor==null?'—':t.profit_factor)+'</b> · Avg per trade '+money(t.expectancy_per_trade)+(t.avg_hold_minutes!=null?' · Avg hold '+t.avg_hold_minutes+' min':'');}
     const m=j.monthly_pct||{};const ms=Object.keys(m);
@@ -838,7 +838,7 @@ async function runBacktest(){
   try{
     const j=await backend('/api/backtest');
     if(!j||j.error){box.textContent='Could not run: '+esc((j&&j.error)||'no response');btn.disabled=false;return;}
-    const row=(label,r)=>{if(!r||!r.days)return '';const t=r.trades||{};return '<div>'+label+': return <b>'+pct(r.return_pct)+'</b>'+(r.spy_return_pct!=null?' vs S&amp;P '+pct(r.spy_return_pct):'')+' · worst drop '+r.max_drawdown_pct+'% · trades '+(t.closed_trades||0)+(t.win_rate_pct!=null?' · win rate '+t.win_rate_pct+'%':'')+(t.profit_factor!=null?' · profit factor '+t.profit_factor:'')+'</div>';};
+    const row=(label,r)=>{if(!r||!r.days)return '';const t=r.trades||{};return '<div>'+label+': return <b>'+pct(r.return_pct)+'</b>'+(r.spy_matched_pct!=null?' vs S&amp;P with the same dollars '+pct(r.spy_matched_pct):'')+' · worst drop '+r.max_drawdown_pct+'% · trades '+(t.closed_trades||0)+(t.win_rate_pct!=null?' · win rate '+t.win_rate_pct+'%':'')+(t.profit_factor!=null?' · profit factor '+t.profit_factor:'')+'</div>';};
     let h='<span class="hint">'+j.symbols+' stocks, '+j.days+' trading days</span>';
     j.variants.forEach(v=>{const r=v.result;h+='<div style="margin-top:10px"><b>'+esc(v.name)+'</b>'+row('All data',r.full)+(r.in_sample?row('First 70% (rules were looked at here)',r.in_sample)+row('Last 30% (the fair test, after '+esc(r.split_date)+')',r.out_of_sample):'')+'</div>';});
     h+='<div class="hint" style="margin-top:10px">'+j.notes.map(esc).join('<br>')+'<br>A strategy only counts if the last-30% line also looks good. Past results do not predict future ones.</div>';
