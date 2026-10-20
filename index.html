@@ -824,6 +824,13 @@ async function loadScorecard(){
       (j.spy_matched_pct!=null?' · S&amp;P with the same dollars invested on the same days: <b>'+pct(j.spy_matched_pct)+'</b> · You vs that: <b>'+pct(j.vs_spy_matched_pct)+'</b>':'')+(j.spy_return_pct!=null?' <span class="hint">(S&amp;P fully invested, all days: '+pct(j.spy_return_pct)+')</span>':'')+
       '<br>Worst drop from a high: <b>'+j.max_drawdown_pct+'%</b> · Profitable days: <b>'+j.profitable_days_pct+'%</b> · Best day '+pct(j.best_day_pct)+' · Worst day '+pct(j.worst_day_pct);
     if(t.closed_trades){h+='<br><br>Closed trades: <b>'+t.closed_trades+'</b> · Win rate <b>'+t.win_rate_pct+'%</b> · Avg win '+money(t.avg_win)+' · Avg loss '+money(t.avg_loss)+' · Profit factor <b>'+(t.profit_factor==null?'—':t.profit_factor)+'</b> · Avg per trade '+money(t.expectancy_per_trade)+(t.avg_hold_minutes!=null?' · Avg hold '+t.avg_hold_minutes+' min':'');}
+    const bd=t.breakdown;
+    if(bd){
+      const rows=a=>a.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won)').join('<br>');
+      h+='<br><br><b>Where the profit comes from</b><br><u>By how long a stock was held</u><br>'+rows(bd.by_hold)+'<br><u>By time of day it was bought</u><br>'+rows(bd.by_entry_time);
+      if(bd.best_symbols&&bd.best_symbols.length)h+='<br><u>Best stocks</u>: '+bd.best_symbols.map(x=>esc(x[0])+' '+money(x[1])).join(' · ')+'<br><u>Worst stocks</u>: '+bd.worst_symbols.map(x=>esc(x[0])+' '+money(x[1])).join(' · ');
+      h+='<br><u>Total profit after trading costs</u> (slippage per side, as a share of each trade): '+bd.after_costs.map(x=>x.bps+' bps (paper has none): <b>'+money(x.net)+'</b>').join(' · ');
+    }
     const m=j.monthly_pct||{};const ms=Object.keys(m);
     if(ms.length)h+='<br><br><b>By month:</b> '+ms.map(k=>esc(k)+' '+pct(m[k])).join(' · ');
     if(j.checks&&j.checks.length)h+='<br><br><b>Ready to scale? (checklist)</b><br>'+j.checks.map(c=>(c.ok?'✅ ':'⬜ ')+esc(c.name)+' — '+esc(c.detail)).join('<br>');
