@@ -443,6 +443,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <b>🧪 Backtest</b> <span class="hint">(replays the chart-based rules on ~2 years of past prices; sends no orders)</span><br>
         <button id="btRunBtn" class="dark" style="margin:8px 0">Run backtest</button>
         <div id="btBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="btRobBtn" class="dark" style="margin:12px 0 8px">Run robustness test</button> <span class="hint">(does the best rule hold up across time slices, different stocks, and the 5% breaker?)</span>
+        <div id="btRobBody" style="font-size:13px;line-height:1.6"></div>
       </div>
     </div>
     <div class="panel">
@@ -847,6 +849,28 @@ async function runBacktest(){
   btn.disabled=false;
 }
 setTimeout(()=>{const b=qs('#btRunBtn');if(b)b.onclick=runBacktest;},1000);
+async function runRobust(){
+  const box=qs('#btRobBody'),btn=qs('#btRobBtn'); if(!box)return;
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  btn.disabled=true;box.textContent='Running… this can take up to a minute or two.';
+  try{
+    const j=await backend('/api/backtest/robust');
+    if(!j||j.error){box.textContent='Could not run: '+esc((j&&j.error)||'no response');btn.disabled=false;return;}
+    let h='';
+    j.reports.forEach(r=>{const s=r.summary;
+      h+='<div style="margin-top:12px"><b>'+esc(r.name)+'</b><br>'+
+        '<b>Positive in '+s.positive_slices+' of '+s.slices+' time slices</b> · beat the S&amp;P (same dollars) in <b>'+s.beat_sp_slices+' of '+s.slices+'</b> · '+(s.both_halves_positive?'✅ positive on both stock lists':'⬜ not positive on both stock lists')+
+        (r.breaker_trips?' · breaker tripped '+r.breaker_trips+' time(s)':'')+
+        '<br>Whole period: '+pct(r.full.return_pct)+' vs S&amp;P same dollars '+pct(r.full.spy_matched_pct)+' · worst drop '+r.full.max_drawdown_pct+'% · trades '+(r.full_trades.closed_trades||0)+(r.full_trades.profit_factor!=null?' · profit factor '+r.full_trades.profit_factor:'')+
+        '<br>'+r.slices.map(x=>esc(x.start)+' to '+esc(x.end)+': '+pct(x.return_pct)+' (S&amp;P '+pct(x.spy_matched_pct)+', '+x.trades+' trades)').join('<br>')+
+        '<br>Stock list A ('+r.halves.A.stocks+'): '+pct(r.halves.A.return_pct)+' · trades '+r.halves.A.trades+(r.halves.A.profit_factor!=null?' · PF '+r.halves.A.profit_factor:'')+' &nbsp;|&nbsp; Stock list B ('+r.halves.B.stocks+'): '+pct(r.halves.B.return_pct)+' · trades '+r.halves.B.trades+(r.halves.B.profit_factor!=null?' · PF '+r.halves.B.profit_factor:'')+'</div>';});
+    h+='<div class="hint" style="margin-top:10px">'+j.notes.map(esc).join('<br>')+'<br>Past results do not predict future ones.</div>';
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;},1000);
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
   const tok=await getAccessToken();
