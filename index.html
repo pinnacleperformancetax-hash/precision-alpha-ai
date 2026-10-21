@@ -1101,6 +1101,7 @@ async function pollAutoStatus(){
       }else{aiB.style.display='none';}
     }
     renderAutoRunningUI(data.running);
+    if(data.running&&data.no_buy_after){qs('#autoStatus').textContent='AUTO ENGINE RUNNING — scanning every 5 minutes · no new buys after '+data.no_buy_after+' ET';}
     setRule('rule-time',data.is_market_hours?'ok':'warn',data.is_market_hours?'OPEN':'CLOSED');
     const feedEl=qs('#autoFeed');
     feedEl.innerHTML=data.scan_log.length?data.scan_log.map(x=>`<div class="logitem">${escH(x)}</div>`).join(''):'<div class="logitem">No scan activity yet.</div>';
