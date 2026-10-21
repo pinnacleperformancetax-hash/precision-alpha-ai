@@ -602,6 +602,8 @@ const EMAILJS_SERVICE='service_fjwybmw';
 const EMAILJS_TEMPLATE='template_qajvk5t';
 const ALERT_EMAIL='pinnacleperformancetax@gmail.com';
 function escH(x){return String(x).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+const symOK=s=>/^[A-Z0-9.\-]{1,10}$/.test(String(s));
+const contractOK=s=>/^[A-Za-z0-9]{1,30}$/.test(String(s||''));
 const DEFAULT_WATCHLIST=['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META'];
 // The server's fixed scan list (see MARKET_SCAN_LIST in app_sentiment.py) — shown for reference only.
 const SERVER_SCAN_LIST=['AAPL','TSLA','NVDA','SPY','QQQ','MSFT','AMD','META','GOOGL','AMZN','NFLX','SOFI','PLTR','RIVN','COIN','SMCI','ARM','UBER','ORCL','JPM','V','DIS','BAC','CRM','PANW'];
@@ -622,6 +624,7 @@ let RULES={maxDailyLoss:null,maxTrades:null,maxPositionSize:null,maxLossPct:null
 // leave the prompt blank during setup.
 let apiKey='';
 let state={killed:false,marketOpen:null,watchlist:JSON.parse(localStorage.getItem('pa_watchlist')||JSON.stringify(DEFAULT_WATCHLIST)),weeklyOrderCount:0};
+state.watchlist=(Array.isArray(state.watchlist)?state.watchlist:[]).map(x=>String(x).toUpperCase()).filter(x=>/^[A-Z0-9.\-]{1,10}$/.test(x));
 
 const qs=s=>document.querySelector(s);
 const qsa=s=>Array.from(document.querySelectorAll(s));
@@ -1210,8 +1213,8 @@ async function stopAutoEngine(){
   try{await backend('/api/engine/stop','POST');toast('Auto engine stopped','warn');await pollAutoStatus();}
   catch(e){toast('Failed to stop engine: '+e.message,'error');}
 }
-function renderWatchlist(){const el=qs('#watchlistTags');if(!el)return;el.innerHTML=state.watchlist.map(s=>`<span class="wtag">${s}<button onclick="removeFromWatchlist('${s}')" style="background:none;border:none;color:#ff4f4f;cursor:pointer;margin-left:4px;font-weight:900">×</button></span>`).join('');}
-function addToWatchlist(){const input=qs('#watchlistInput');const sym=(input?.value||'').trim().toUpperCase();if(!sym){toast('Enter a symbol','warn');return;}if(state.watchlist.includes(sym)){toast(`${sym} already in watchlist`,'warn');return;}if(state.watchlist.length>=20){toast('Max 20 symbols','warn');return;}state.watchlist.push(sym);localStorage.setItem('pa_watchlist',JSON.stringify(state.watchlist));input.value='';renderWatchlist();toast(`${sym} added`,'success');}
+function renderWatchlist(){const el=qs('#watchlistTags');if(!el)return;el.innerHTML=state.watchlist.filter(symOK).map(s=>`<span class="wtag">${escH(s)}<button onclick="removeFromWatchlist('${escH(s)}')" style="background:none;border:none;color:#ff4f4f;cursor:pointer;margin-left:4px;font-weight:900">×</button></span>`).join('');}
+function addToWatchlist(){const input=qs('#watchlistInput');const sym=(input?.value||'').trim().toUpperCase();if(!sym){toast('Enter a symbol','warn');return;}if(!symOK(sym)){toast('Use letters and numbers only, like AAPL or BRK.B','warn');return;}if(state.watchlist.includes(sym)){toast(`${sym} already in watchlist`,'warn');return;}if(state.watchlist.length>=20){toast('Max 20 symbols','warn');return;}state.watchlist.push(sym);localStorage.setItem('pa_watchlist',JSON.stringify(state.watchlist));input.value='';renderWatchlist();toast(`${sym} added`,'success');}
 function removeFromWatchlist(sym){state.watchlist=state.watchlist.filter(s=>s!==sym);localStorage.setItem('pa_watchlist',JSON.stringify(state.watchlist));renderWatchlist();}
 
 async function loadDashboard(){
@@ -1364,7 +1367,7 @@ async function saveVault(){
   try{await backend('/api/vault/set','POST',body);toast('Vault settings saved','success');loadProfitLedger();}
   catch(e){toast('Could not save: '+e.message,'error');}
 }
-async function loadPositions(){try{const pos=await backend('/api/positions');if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);const over=RULES.maxSharesPerStock&&parseInt(p.qty)>RULES.maxSharesPerStock;return`<tr><td><strong>${p.symbol}</strong>${over?' <span style="color:var(--red);font-size:11px">⚠ over cap</span>':''}</td><td>${p.qty}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;}catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
+async function loadPositions(){try{const pos=await backend('/api/positions');if(!pos.length){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">No open positions.</p>';return;}qs('#positionsList').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>P&L</th></tr></thead><tbody>${pos.map(p=>{const pl=parseFloat(p.unrealized_pl);const over=RULES.maxSharesPerStock&&parseInt(p.qty)>RULES.maxSharesPerStock;return`<tr><td><strong>${escH(p.symbol)}</strong>${over?' <span style="color:var(--red);font-size:11px">⚠ over cap</span>':''}</td><td>${escH(p.qty)}</td><td>${fmtMoney(p.avg_entry_price)}</td><td style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtMoney(pl)}</td></tr>`;}).join('')}</tbody></table>`;}catch(e){qs('#positionsList').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 async function loadRecentOrders(){try{const orders=await backend('/api/orders?status=all&limit=8');if(!orders.length){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">No orders yet.</p>';return;}qs('#recentOrders').innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${escH(o.symbol)}</strong></td><td><span class="badge-pill ${escH(o.side)}">${escH(o.side).toUpperCase()}</span></td><td>${escH(o.qty)}</td><td><span class="badge-pill ${o.status==='filled'?'filled':'pending'}">${escH(o.status)}</span></td><td style="color:var(--muted);font-size:11px">${new Date(o.submitted_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;}catch(e){qs('#recentOrders').innerHTML='<p style="color:var(--muted);font-size:13px">Could not load.</p>';}}
 
 // ---- Options: Step 1 (browse contracts only — no order placement yet) ----
@@ -1394,9 +1397,9 @@ async function browseOptionContracts(){
     const data=await backend('/api/options/contracts/'+symbol+'?'+params.toString());
     const contracts=data.option_contracts||[];
     if(!contracts.length){listEl.innerHTML='<p style="color:var(--muted);font-size:13px">No contracts found for that symbol/date range.</p>';return;}
-    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th><th></th></tr></thead><tbody>${contracts.slice(0,50).map(c=>`<tr class="opt-row" data-symbol="${c.symbol}" data-tradable="${c.tradable?'1':'0'}" style="cursor:pointer" onclick="selectOptionContract('${c.symbol}',${c.tradable?'true':'false'})"><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${c.expiration_date}</td><td>${c.tradable?'✅':'—'}</td><td><button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="event.stopPropagation();addSpreadLeg('${c.symbol}')">+ Leg</button></td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
+    listEl.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expires</th><th>Tradable</th><th></th></tr></thead><tbody>${contracts.filter(c=>contractOK(c.symbol)).slice(0,50).map(c=>`<tr class="opt-row" data-symbol="${c.symbol}" data-tradable="${c.tradable?'1':'0'}" style="cursor:pointer" onclick="selectOptionContract('${c.symbol}',${c.tradable?'true':'false'})"><td style="font-size:11px">${c.symbol}</td><td><span class="badge-pill ${c.type==='call'?'buy':'sell'}">${escH((c.type||'').toUpperCase())}</span></td><td>${fmtMoney(c.strike_price)}</td><td style="font-size:11px">${escH(c.expiration_date)}</td><td>${c.tradable?'✅':'—'}</td><td><button class="dark" style="padding:6px 10px;font-size:11px;margin:0" onclick="event.stopPropagation();addSpreadLeg('${c.symbol}')">+ Leg</button></td></tr>`).join('')}</tbody></table>${contracts.length>50?`<p class="hint" style="margin-top:8px">Showing 50 of ${contracts.length} contracts — narrow the date range for a fuller view.</p>`:''}`;
   }catch(e){
-    listEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Could not load contracts: ${e.message}</p>`;
+    listEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Could not load contracts: ${escH(e.message)}</p>`;
   }
 }
 function selectOptionContract(symbol,tradable){
@@ -1452,7 +1455,7 @@ async function updateSingleLegRiskReward(){
       ['Breakeven',fmtMoney(breakeven),'neutral'],
     ])+`<p class="hint" style="margin-top:8px">Based on mid price ${fmtMoney(q.mid)}/contract. Actual fill price may differ.</p>`;
   }catch(e){
-    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not load quote for risk/reward: ${e.message}</p>`;
+    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not load quote for risk/reward: ${escH(e.message)}</p>`;
   }
 }
 
@@ -1533,7 +1536,7 @@ async function updateSpreadRiskReward(){
       ])+'<p class="hint" style="margin-top:8px">This leg combination isn\'t a simple vertical spread, so exact max loss/gain isn\'t auto-computed — only the net cost is shown.</p>';
     }
   }catch(e){
-    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not compute risk/reward: ${e.message}</p>`;
+    el.innerHTML=`<p style="color:var(--muted);font-size:12px">Could not compute risk/reward: ${escH(e.message)}</p>`;
   }
 }
 
@@ -1663,14 +1666,14 @@ async function runEdgeScan(){
     const data=await backend('/api/options/edge-scan?'+params.toString());
     const candidates=data.candidates||[];
     if(!candidates.length){
-      resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">No scoreable contracts found.${data.skipped&&data.skipped.length?' Skipped: '+data.skipped.join('; '):''}</p>`;
+      resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">No scoreable contracts found.${data.skipped&&data.skipped.length?' Skipped: '+escH(data.skipped.join('; ')):''}</p>`;
       return;
     }
     resultsEl.innerHTML=candidates.map((c,i)=>{
       const scoreCls=c.edge_score>=70?'good':c.edge_score>=45?'warn':'bad';
       return `<div class="ai-box ${scoreCls}" style="margin-bottom:${i<candidates.length-1?'10px':'0'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div><strong style="font-size:16px">${c.underlying}</strong> <span class="badge-pill ${c.type==='call'?'buy':'sell'}">${(c.type||'').toUpperCase()}</span> $${c.strike_price} exp ${c.expiration_date}</div>
+          <div><strong style="font-size:16px">${c.underlying}</strong> <span class="badge-pill ${c.type==='call'?'buy':'sell'}">${escH((c.type||'').toUpperCase())}</span> $${c.strike_price} exp ${c.expiration_date}</div>
           <div style="font-size:20px;font-weight:900">${c.edge_score}<span style="font-size:11px;color:var(--muted)">/100</span></div>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Mid ${fmtMoney(c.mid_price)} · Spread ${c.spread_pct}% · Delta ${c.delta??'—'} · IV ${c.iv??'—'}%</div>
@@ -1678,9 +1681,9 @@ async function runEdgeScan(){
         <button class="gold" style="width:100%" onclick="selectScannedContract('${c.contract_symbol}')">Use This Contract</button>
       </div>`;
     }).join('');
-    if(data.skipped&&data.skipped.length)resultsEl.innerHTML+=`<p class="hint" style="margin-top:10px">Skipped: ${data.skipped.join('; ')}</p>`;
+    if(data.skipped&&data.skipped.length)resultsEl.innerHTML+=`<p class="hint" style="margin-top:10px">Skipped: ${escH(data.skipped.join('; '))}</p>`;
   }catch(e){
-    resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Scan failed: ${e.message}</p>`;
+    resultsEl.innerHTML=`<p style="color:var(--muted);font-size:13px">Scan failed: ${escH(e.message)}</p>`;
   }
 }
 function selectScannedContract(symbol){
@@ -1738,7 +1741,7 @@ async function checkGate(){
     const maxLoss=cost*RULES.maxLossPct/100;
     const maxGain=cost*RULES.scaleOutTier3Pct/100;
     const rrRatio=maxLoss>0?(maxGain/maxLoss).toFixed(2):'—';
-    qs('#quoteBox').innerHTML=`<div class="quote-symbol">${symbol}</div><div class="quote-price">${fmtMoney(price)}</div><div class="quote-sub">${qty} share${qty>1?'s':''} = ${fmtMoney(cost)}</div>`;
+    qs('#quoteBox').innerHTML=`<div class="quote-symbol">${escH(symbol)}</div><div class="quote-price">${fmtMoney(price)}</div><div class="quote-sub">${qty} share${qty>1?'s':''} = ${fmtMoney(cost)}</div>`;
     qs('#riskBox').innerHTML=`
       <div class="sum-grid" style="margin-top:0">
         <div class="sum-item"><span>Max Loss</span><strong class="loss">${fmtMoney(maxLoss)}</strong></div>
@@ -1750,7 +1753,7 @@ async function checkGate(){
         <div class="rule ok"><span class="rule-dot"></span><span>Stop loss at ${fmtMoney(stopPrice)} (−${RULES.maxLossPct}%)</span></div>
         <div class="rule ok"><span class="rule-dot"></span><span>Final profit target at ${fmtMoney(targetPrice)} (+${RULES.scaleOutTier3Pct}%)</span></div>
       </div>`;
-  }catch(e){qs('#quoteBox').innerHTML=`<p style="color:var(--muted);font-size:13px">Could not fetch quote for ${symbol}.</p>`;}
+  }catch(e){qs('#quoteBox').innerHTML=`<p style="color:var(--muted);font-size:13px">Could not fetch quote for ${escH(symbol)}.</p>`;}
   const gate=checkSafetyGate(confidence,volatility,syncScore);
   resultEl.style.display='block';submitBtn.style.display='none';
   setRule('rule-conf',confidence>=RULES.minConfidence?'ok':'bad',confidence.toString());
@@ -1764,7 +1767,7 @@ async function checkGate(){
     try{
       const analysis=await analyzeTradeWithAI(symbol,side,qty,price,confidence,volatility,syncScore,style);
       let cls='warn';if(analysis.includes('GOOD TRADE'))cls='good';if(analysis.includes('BAD TRADE'))cls='bad';
-      aiBox.innerHTML=`<div class="ai-box ${cls}"><div class="ai-header">🤖 AI Analysis · ${style}</div><div class="ai-body">${analysis.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div></div>`;
+      aiBox.innerHTML=`<div class="ai-box ${cls}"><div class="ai-header">🤖 AI Analysis · ${escH(style)}</div><div class="ai-body">${escH(analysis).replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div></div>`;
     }catch(e){aiBox.innerHTML='<div class="ai-box warn">AI unavailable.</div>';}
   }
 }
