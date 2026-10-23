@@ -834,6 +834,9 @@ async function loadScorecard(){
       const rows=a=>a.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won)').join('<br>');
       h+='<br><br><b>Where the profit comes from</b><br><u>By how long a stock was held</u><br>'+rows(bd.by_hold)+'<br><u>By time of day it was bought</u><br>'+rows(bd.by_entry_time);
       if(bd.by_source&&bd.by_source.length)h+='<br><u>By source (which engine\'s stocks)</u><br>'+bd.by_source.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won, profit factor '+(r.profit_factor==null?'—':r.profit_factor)+', avg '+money(r.avg_per_trade)+' per trade)').join('<br>')+'<br><span class="hint">Matched by stock: the Auto Engine\'s 25 stocks count as Auto Engine; stocks only the congressional copy engine has bought count as Congress copy; the rest is Other / manual. A stock traded by both engines shows under Auto Engine.</span>';
+      if(bd.same_day_vs_overnight&&bd.same_day_vs_overnight.length)h+='<br><u>Same day vs held overnight</u><br>'+rows(bd.same_day_vs_overnight);
+      if(bd.by_weekday&&bd.by_weekday.length)h+='<br><u>By day of the week it was bought</u><br>'+rows(bd.by_weekday);
+      if(bd.hold_by_entry&&bd.hold_by_entry.length)h+='<br><u>Holding time \u00d7 time of day bought</u> <span class="hint">(only combinations with trades)</span><br>'+bd.hold_by_entry.map(r=>esc(r.hold)+' / bought '+esc(r.entry)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won)').join('<br>');
       if(bd.best_symbols&&bd.best_symbols.length)h+='<br><u>Best stocks</u>: '+bd.best_symbols.map(x=>esc(x[0])+' '+money(x[1])).join(' · ')+'<br><u>Worst stocks</u>: '+bd.worst_symbols.map(x=>esc(x[0])+' '+money(x[1])).join(' · ');
       h+='<br><u>Total profit after trading costs</u> (slippage per side, as a share of each trade): '+bd.after_costs.map(x=>x.bps+' bps (paper has none): <b>'+money(x.net)+'</b>').join(' · ');
     }
