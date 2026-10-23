@@ -445,6 +445,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="btBody" style="font-size:13px;line-height:1.6"></div>
         <button id="btRobBtn" class="dark" style="margin:12px 0 8px">Run robustness test</button> <span class="hint">(does the best rule hold up across time slices, different stocks, and the 5% breaker?)</span>
         <div id="btRobBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
+        <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
     </div>
     <div class="panel">
@@ -882,6 +884,27 @@ async function runRobust(){
   btn.disabled=false;
 }
 setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;},1000);
+async function runProp(){
+  const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  btn.disabled=true;box.textContent='Running…';
+  try{
+    const j=await backend('/api/propsim');
+    if(!j||j.error){box.textContent='Could not run: '+esc((j&&j.error)||'no response');btn.disabled=false;return;}
+    const p=j.params;
+    let h='<span class="hint">Rules: reach +'+p.target_pct+'% within '+p.time_limit_days+' days (at least '+p.min_trading_days+' trading days), never lose '+p.daily_loss_pct+'% in a day or '+p.max_loss_pct+'% from the start. Every possible start day from '+esc(j.start_date)+' to '+esc(j.end_date)+' was tried.</span>';
+    j.scenarios.forEach(s=>{
+      h+='<div style="margin-top:10px"><b>'+(s.size===1?'As traded (1x)':s.size+'x the size')+'</b>: passed <b>'+s.passed+' of '+s.windows+'</b> ('+(s.pass_rate_pct==null?'—':s.pass_rate_pct+'%')+')'+
+        ' · broke the daily limit '+s.failed_daily+' · broke the max loss '+s.failed_max_loss+' · ran out of time '+s.timed_out+
+        '<br>Best 30-day result '+pct(s.best_return_pct)+' · worst '+pct(s.worst_return_pct)+(s.avg_days_to_pass!=null?' · average days to pass '+s.avg_days_to_pass:'')+'</div>';
+    });
+    h+='<div class="hint" style="margin-top:10px">"5x the size" means the same trades with five times the dollars (a simulation: real fills, costs and limits would differ). Uses daily closing balances only, so a real firm watching minute-by-minute could fail a run this test passes. Firms use different rules, and many limit or ban automated trading, so check the rules of any program before paying a fee. Past results do not predict future ones.</div>';
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const b=qs('#propBtn');if(b)b.onclick=runProp;},1000);
 async function requireLoginThenStart(){
   if(!paAuth){setAuthMode('signin');authMsg('Sign-in could not load. Check your connection and refresh the page.','err');return;}
   const tok=await getAccessToken();
