@@ -445,6 +445,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="btBody" style="font-size:13px;line-height:1.6"></div>
         <button id="btRobBtn" class="dark" style="margin:12px 0 8px">Run robustness test</button> <span class="hint">(does the best rule hold up across time slices, different stocks, and the 5% breaker?)</span>
         <div id="btRobBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="swingBtn" class="dark" style="margin:12px 0 8px">Run swing-style test</button> <span class="hint">(same buys, but holding longer before selling: 3+ days and 5+ days, against the current style)</span>
+        <div id="swingBody" style="font-size:13px;line-height:1.6"></div>
         <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
         <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
@@ -865,13 +867,13 @@ async function runBacktest(){
   btn.disabled=false;
 }
 setTimeout(()=>{const b=qs('#btRunBtn');if(b)b.onclick=runBacktest;},1000);
-async function runRobust(){
-  const box=qs('#btRobBody'),btn=qs('#btRobBtn'); if(!box)return;
+async function renderRobust(url,boxSel,btnSel){
+  const box=qs(boxSel),btn=qs(btnSel); if(!box)return;
   const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   btn.disabled=true;box.textContent='Running… this can take up to a minute or two.';
   try{
-    const j=await backend('/api/backtest/robust');
+    const j=await backend(url);
     if(!j||j.error){box.textContent='Could not run: '+esc((j&&j.error)||'no response');btn.disabled=false;return;}
     let h='';
     j.reports.forEach(r=>{const s=r.summary;
@@ -886,7 +888,9 @@ async function runRobust(){
   }catch(e){box.textContent='Could not reach the server.';}
   btn.disabled=false;
 }
-setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;},1000);
+function runRobust(){return renderRobust('/api/backtest/robust','#btRobBody','#btRobBtn');}
+function runSwing(){return renderRobust('/api/backtest/swing','#swingBody','#swingBtn');}
+setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;const c=qs('#swingBtn');if(c)c.onclick=runSwing;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
