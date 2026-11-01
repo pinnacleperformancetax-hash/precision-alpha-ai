@@ -436,6 +436,10 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div class="panel-title">💵 LIVE MONEY ACCOUNT <span class="hint">(your own real-money Alpaca account, separate from paper)</span></div>
       <div id="liveBody" style="font-size:14px;line-height:1.6">Loading…</div>
     </div>
+    <div class="panel" id="seedPanel">
+      <div class="panel-title">🌱 SEED SIM <span class="hint">(pretend $300 accounts: can a tiny account grow instead of hovering? no real money, no orders)</span></div>
+      <div id="seedBody" style="font-size:14px;line-height:1.6">Loading…</div>
+    </div>
     <div class="panel" id="scorePanel">
       <div class="panel-title">📈 TRACK RECORD SCORECARD <span class="hint">(paper account vs the S&amp;P 500 — the evidence needed before scaling)</span></div>
       <div id="scoreBody" style="font-size:14px;line-height:1.6">Loading…</div>
@@ -816,6 +820,27 @@ async function loadLivePanel(){
   }catch(e){box.textContent='Could not reach the server.';}
 }
 setTimeout(loadLivePanel,3000);setInterval(loadLivePanel,30000);
+async function loadSeedPanel(){
+  const box=qs('#seedBody'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money=n=>(n<0?'-':'')+'$'+Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  try{
+    const j=await backend('/api/seedsim/status');
+    if(!j||j.enabled===undefined){box.textContent='Not available.';return;}
+    if(!j.enabled){box.innerHTML='<b>Not switched on.</b> (SEEDSIM=0 in Render turns it off.)';return;}
+    if(!j.sims||!j.sims.length){box.innerHTML='Waiting for the first market-hours scan. Two pretend accounts (Calm and Focused) will start with '+money(j.start)+' each.';return;}
+    let h='<div style="margin-bottom:8px">Both start with '+money(j.start)+' and trade the same signals as the live account. After '+j.dangle_days+' trading days, an account that never left 2% of its start counts as <b>dangling</b>.</div>';
+    h+=j.sims.map(s=>{
+      const col=s.return_pct>=0?'#6fd98f':'#ff7b7b';
+      let x='<div style="margin-bottom:12px"><b>'+esc(s.label)+'</b> · '+esc(s.verdict)+'<br>Value <b>'+money(s.equity)+'</b> (<span style="color:'+col+'">'+(s.return_pct>=0?'+':'')+s.return_pct+'%</span>) · Cash '+money(s.cash)+' · Closed trades '+s.trades+(s.win_rate_pct!==null?' · Win rate '+s.win_rate_pct+'%':'')+(s.profit_factor!==null?' · Profit factor '+s.profit_factor:'')+' · Worst drop '+s.max_dd_pct+'%';
+      x+='<br>Holding: '+(s.positions.length?s.positions.map(p=>esc(p.symbol)+' '+p.qty+' @ '+money(p.avg)).join(', '):'nothing');
+      if(s.feed&&s.feed.length)x+='<div style="font-size:13px;opacity:.85;margin-top:4px">'+s.feed.slice(0,5).map(esc).join('<br>')+'</div>';
+      return x+'</div>';
+    }).join('');
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+}
+setTimeout(loadSeedPanel,3500);setInterval(loadSeedPanel,30000);
 async function loadScorecard(){
   const box=qs('#scoreBody'); if(!box)return;
   const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(2)+'%');
