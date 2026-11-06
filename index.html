@@ -451,6 +451,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="btRobBody" style="font-size:13px;line-height:1.6"></div>
         <button id="swingBtn" class="dark" style="margin:12px 0 8px">Run swing-style test</button> <span class="hint">(same buys, but holding longer before selling: 3+ days and 5+ days, against the current style)</span>
         <div id="swingBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="dipBtn" class="dark" style="margin:12px 0 8px">Run buy-the-dip test</button> <span class="hint">(would buying sharp dips, even while the S&P is falling, have beaten the current rules? Includes the April 2025 sell-off)</span>
+        <div id="dipBody" style="font-size:13px;line-height:1.6"></div>
         <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
         <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
@@ -915,7 +917,8 @@ async function renderRobust(url,boxSel,btnSel){
 }
 function runRobust(){return renderRobust('/api/backtest/robust','#btRobBody','#btRobBtn');}
 function runSwing(){return renderRobust('/api/backtest/swing','#swingBody','#swingBtn');}
-setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;const c=qs('#swingBtn');if(c)c.onclick=runSwing;},1000);
+function runDips(){return renderRobust('/api/backtest/dips','#dipBody','#dipBtn');}
+setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;const c=qs('#swingBtn');if(c)c.onclick=runSwing;const d=qs('#dipBtn');if(d)d.onclick=runDips;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
