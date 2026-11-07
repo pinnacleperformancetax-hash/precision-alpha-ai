@@ -917,7 +917,28 @@ async function renderRobust(url,boxSel,btnSel){
 }
 function runRobust(){return renderRobust('/api/backtest/robust','#btRobBody','#btRobBtn');}
 function runSwing(){return renderRobust('/api/backtest/swing','#swingBody','#swingBtn');}
-function runDips(){return renderRobust('/api/backtest/dips','#dipBody','#dipBtn');}
+async function runDips(){
+  const box=qs('#dipBody'),btn=qs('#dipBtn'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  btn.disabled=true;box.textContent='Running variant 1 of 5…';
+  let h='',notes=[];
+  try{
+    for(let i=0;i<5;i++){
+      box.innerHTML=h+'<div class="hint" style="margin-top:8px">Running variant '+(i+1)+' of 5…</div>';
+      const j=await backend('/api/backtest/dips?v='+i);
+      if(!j||j.error){h+='<div style="margin-top:12px">Variant '+(i+1)+' failed: '+esc((j&&j.error)||'no response')+'</div>';continue;}
+      notes=j.notes||notes;
+      j.reports.forEach(r=>{const s=r.summary;
+        h+='<div style="margin-top:12px"><b>'+esc(r.name)+'</b><br>'+
+        '<b>Positive in '+s.positive_slices+' of '+s.slices+' time slices</b> · beat the S&amp;P in <b>'+s.beat_sp_slices+' of '+s.slices+'</b>'+
+        '<br>Whole period: '+pct(r.full.return_pct)+' vs S&amp;P same dollars '+pct(r.full.spy_matched_pct)+' · worst drop '+r.full.max_drawdown_pct+'% · trades '+(r.full_trades.closed_trades||0)+(r.full_trades.profit_factor!=null?' · PF '+r.full_trades.profit_factor:'')+
+        '<br>'+r.slices.map(x=>esc(x.start)+' to '+esc(x.end)+': '+pct(x.return_pct)+' (S&amp;P '+pct(x.spy_matched_pct)+', '+x.trades+' trades)').join('<br>')+'</div>';});
+    }
+    box.innerHTML=h+'<div class="hint" style="margin-top:10px">'+notes.map(esc).join('<br>')+'<br>Past results do not predict future ones.</div>';
+  }catch(e){box.innerHTML=h+'<div style="margin-top:8px">Stopped: '+esc((e&&e.message)||'network error')+'</div>';}
+  btn.disabled=false;
+}
 setTimeout(()=>{const b=qs('#btRobBtn');if(b)b.onclick=runRobust;const c=qs('#swingBtn');if(c)c.onclick=runSwing;const d=qs('#dipBtn');if(d)d.onclick=runDips;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
