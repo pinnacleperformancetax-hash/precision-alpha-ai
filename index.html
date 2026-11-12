@@ -440,6 +440,10 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
       <div class="panel-title">🌱 SEED SIM <span class="hint">(pretend $300 accounts: can a tiny account grow instead of hovering? no real money, no orders)</span></div>
       <div id="seedBody" style="font-size:14px;line-height:1.6">Loading…</div>
     </div>
+    <div class="panel" id="abPanel">
+      <div class="panel-title">🧪 AI vs NO-AI <span class="hint">(pretend accounts, same rules and stocks; the only difference is whether the AI's opinion counts. Does the AI actually improve results?)</span></div>
+      <div id="abBody" style="font-size:14px;line-height:1.6">Loading…</div>
+    </div>
     <div class="panel" id="scorePanel">
       <div class="panel-title">📈 TRACK RECORD SCORECARD <span class="hint">(paper account vs the S&amp;P 500 — the evidence needed before scaling)</span></div>
       <div id="scoreBody" style="font-size:14px;line-height:1.6">Loading…</div>
@@ -834,6 +838,23 @@ async function loadLivePanel(){
   }catch(e){box.textContent='Could not reach the server.';}
 }
 setTimeout(loadLivePanel,3000);setInterval(loadLivePanel,30000);
+async function loadAbPanel(){
+  const box=qs('#abBody'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money=n=>(n<0?'-':'')+'$'+Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  try{
+    const j=await backend('/api/ab/status');
+    if(!j||j.enabled===undefined){box.textContent='Not available.';return;}
+    if(!j.enabled){box.innerHTML='<b>Not switched on.</b> (AB_SIM=0 in Render turns it off.)';return;}
+    if(!j.sims||!j.sims.length){box.innerHTML='Waiting for the first market-hours scan. Two pretend accounts will start with '+money(j.start)+' each.';return;}
+    let h='<div style="margin-bottom:8px"><b>'+esc(j.question)+'</b><br><span class="hint">Started '+esc(j.started||'')+' · AI checks so far (all scans): '+j.ai_calls+'</span></div>';
+    h+=j.sims.map(s=>{const col=s.return_pct>=0?'#6fd98f':'#ff7b7b';
+      return '<div style="margin-bottom:10px"><b>'+esc(s.label)+'</b><br>Value <b>'+money(s.equity)+'</b> (<span style="color:'+col+'">'+(s.return_pct>=0?'+':'')+s.return_pct+'%</span>) · Closed trades '+s.trades+(s.win_rate_pct!==null?' · Win rate '+s.win_rate_pct+'%':'')+(s.profit_factor!==null?' · Profit factor '+s.profit_factor:'')+' · Worst drop '+s.max_dd_pct+'% · Invested now '+s.invested_pct+'%<br>Holding: '+(s.positions.length?s.positions.map(p=>esc(p.symbol)+' '+p.qty).join(', '):'nothing')+'</div>';}).join('');
+    h+='<div class="hint">'+esc(j.note)+'</div>';
+    box.innerHTML=h;
+  }catch(e){box.textContent='Could not reach the server.';}
+}
+setTimeout(loadAbPanel,4000);setInterval(loadAbPanel,60000);
 async function loadSeedPanel(){
   const box=qs('#seedBody'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
