@@ -819,9 +819,17 @@ async function loadLivePanel(){
     const bk=j.breaker;
     if(bk){h+='<br><br><b>Circuit breaker</b>: '+(bk.tripped?'<b style="color:#ff7b7b">TRIPPED</b> (account fell to '+money(bk.equity_at_trip)+', '+bk.max_drawdown_pct+'% or more below its high of '+money(bk.peak)+'). No new buys until you resume.':'<b style="color:#6fd98f">OK</b> · stops new buys if the account falls '+bk.max_drawdown_pct+'% below its high'+(bk.peak?' of '+money(bk.peak):''))+(bk.reset_pending?' · reset will apply on the next check':'');}
     h+='<br><br>'+((bk&&bk.tripped&&!bk.reset_pending)?'<button id="liveBreakerBtn" class="dark" style="margin-right:8px">✅ Resume buying</button>':'')+'<button id="livePauseBtn" class="dark" style="margin-right:8px">'+(j.paused?'▶ Resume new buys':'⏸ Pause new buys')+'</button>';
+    h+='<div style="margin-top:10px"><button id="liveDecBtn" class="dark">Show decision log</button><div id="liveDecBody" style="font-size:12px;line-height:1.5;margin-top:6px"></div></div>';
     if(j.feed&&j.feed.length)h+='<div style="margin-top:10px"><b>Recent live activity</b><br>'+j.feed.map(esc).join('<br>')+'</div>';
     box.innerHTML=h;
     const bb=qs('#liveBreakerBtn');if(bb)bb.onclick=async()=>{if(!confirm('Allow new buys again? The breaker will start a fresh high from the current account value.'))return;try{await backend('/api/live/breaker/reset','POST');}catch(e){}loadLivePanel();};
+    qs('#liveDecBtn').onclick=async()=>{const bx=qs('#liveDecBody');bx.textContent='Loading…';try{const d=await backend('/api/live/decisions');const L=d.decisions||[];
+      bx.innerHTML=L.length?('<span class="hint">Rule version: '+esc(d.version)+'</span><br>'+L.map(x=>{const o=x.outcome;const sg=x.signals||{};
+        return '<div style="margin-top:8px;border-top:1px solid #333;padding-top:6px"><b>'+esc((x.side||'').toUpperCase())+' '+esc(x.sym)+'</b> · '+esc(x.kind)+' · '+esc(x.why)+' · about '+money(x.price)+' · '+esc(new Date(x.t).toLocaleString())+
+        (sg.base?'<br>Signals: '+sg.base.map(s=>esc(s[0])+(s[1]?' ✓':' ✗')).join(', ')+' · AI confidence '+esc(sg.ai.confidence)+', volatility '+esc(sg.ai.volatility)+', sync '+esc(sg.ai.sync):'')+
+        (x.checks&&x.checks.length?'<br>Checks passed: '+x.checks.map(esc).join('; '):'')+
+        '<br>Order: '+(o?esc(o.status)+(o.filled_qty?' · filled '+o.filled_qty+' at '+money(o.avg_price):''):'submitted, waiting for Alpaca')+
+        (x.exits&&x.exits.length?'<br>Exits: '+x.exits.map(e=>esc(e.kind)+' ('+esc(e.why)+')').join('; '):(x.side==='buy'?'<br>Exit: still open':''))+'</div>';}).join('')):'No decisions recorded yet. New live trades will appear here.';}catch(e){bx.textContent='Could not load the decision log: '+(e&&e.message||'network error');}};
     qs('#livePauseBtn').onclick=async()=>{try{await backend(j.paused?'/api/live/resume':'/api/live/pause','POST');}catch(e){}loadLivePanel();};
   }catch(e){box.textContent='Could not reach the server.';}
 }
@@ -861,12 +869,14 @@ async function loadScorecard(){
       'Account: <b>'+money(j.start_equity)+' → '+money(j.end_equity)+'</b> ('+pct(j.return_pct)+')'+
       (j.spy_matched_pct!=null?' · S&amp;P with the same dollars invested on the same days: <b>'+pct(j.spy_matched_pct)+'</b> · You vs that: <b>'+pct(j.vs_spy_matched_pct)+'</b>':'')+(j.spy_return_pct!=null?' <span class="hint">(S&amp;P fully invested, all days: '+pct(j.spy_return_pct)+')</span>':'')+
       '<br>Worst drop from a high: <b>'+j.max_drawdown_pct+'%</b> · Profitable days: <b>'+j.profitable_days_pct+'%</b> · Best day '+pct(j.best_day_pct)+' · Worst day '+pct(j.worst_day_pct);
+    if(j.exposure){h+='<br><br>Time invested: on average <b>'+j.exposure.avg_pct+'%</b> of the account was in stocks, over '+j.exposure.days+' tracked days (tracking began '+esc(j.exposure.since)+'). Rule version now running: '+esc(j.rule_version||'')+'.';}
     if(t.closed_trades){h+='<br><br>Closed trades: <b>'+t.closed_trades+'</b> · Win rate <b>'+t.win_rate_pct+'%</b> · Avg win '+money(t.avg_win)+' · Avg loss '+money(t.avg_loss)+' · Profit factor <b>'+(t.profit_factor==null?'—':t.profit_factor)+'</b> · Avg per trade '+money(t.expectancy_per_trade)+(t.avg_hold_minutes!=null?' · Avg hold '+t.avg_hold_minutes+' min':'');}
     const bd=t.breakdown;
     if(bd){
       const rows=a=>a.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won)').join('<br>');
       h+='<br><br><b>Where the profit comes from</b><br><u>By how long a stock was held</u><br>'+rows(bd.by_hold)+'<br><u>By time of day it was bought</u><br>'+rows(bd.by_entry_time);
       if(bd.by_source&&bd.by_source.length)h+='<br><u>By source (which engine\'s stocks)</u><br>'+bd.by_source.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won, profit factor '+(r.profit_factor==null?'—':r.profit_factor)+', avg '+money(r.avg_per_trade)+' per trade)').join('<br>')+'<br><span class="hint">Matched by stock: the Auto Engine\'s scan-list stocks count as Auto Engine; stocks only the congressional copy engine has bought count as Congress copy; trades the crash-mode rule bought are counted on their own line as Crash mode; the rest is Other / manual. A stock traded by both engines shows under Auto Engine.</span>';
+      if(bd.by_version&&bd.by_version.length)h+='<br><u>By rule version (which version of the rules opened the trade)</u><br>'+bd.by_version.map(r=>esc(r.bucket)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won, profit factor '+(r.profit_factor==null?'—':r.profit_factor)+')').join('<br>');
       if(bd.same_day_vs_overnight&&bd.same_day_vs_overnight.length)h+='<br><u>Same day vs held overnight</u><br>'+rows(bd.same_day_vs_overnight);
       if(bd.by_weekday&&bd.by_weekday.length)h+='<br><u>By day of the week it was bought</u><br>'+rows(bd.by_weekday);
       if(bd.hold_by_entry&&bd.hold_by_entry.length)h+='<br><u>Holding time \u00d7 time of day bought</u> <span class="hint">(only combinations with trades)</span><br>'+bd.hold_by_entry.map(r=>esc(r.hold)+' / bought '+esc(r.entry)+': <b>'+money(r.pl)+'</b> ('+r.trades+' trades, '+r.win_rate_pct+'% won)').join('<br>');
