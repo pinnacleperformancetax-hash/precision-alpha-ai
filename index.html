@@ -455,6 +455,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="dipBody" style="font-size:13px;line-height:1.6"></div>
         <button id="invBtn" class="dark" style="margin:12px 0 8px">Run inverse-ETF test</button> <button id="invBtn4" class="dark" style="margin:12px 0 8px">Same test, 4 years</button> <span class="hint">(would holding SH / PSQ while the S&P is in a downtrend have made money? The 4-year version includes 2022)</span>
         <div id="invBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="haBtn" class="dark" style="margin:12px 0 8px">Run Heikin-Ashi exit test</button> <span class="hint">(would selling when Heikin-Ashi candles turn red beat the current exit?)</span>
+        <div id="haBody" style="font-size:13px;line-height:1.6"></div>
         <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
         <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
@@ -963,6 +965,28 @@ async function runInv(years){
   b1.disabled=b2.disabled=false;
 }
 setTimeout(()=>{const a=qs('#invBtn');if(a)a.onclick=()=>runInv(2);const b=qs('#invBtn4');if(b)b.onclick=()=>runInv(4);},1000);
+async function runHa(){
+  const box=qs('#haBody'),btn=qs('#haBtn'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  btn.disabled=true; let h='',notes=[];
+  try{
+    for(let i=0;i<4;i++){
+      box.innerHTML=h+'<div class="hint" style="margin-top:8px">Running variant '+(i+1)+' of 4…</div>';
+      const j=await backend('/api/backtest/ha?v='+i);
+      if(!j||j.error){h+='<div style="margin-top:12px">Variant '+(i+1)+' failed: '+esc((j&&j.error)||'no response')+'</div>';continue;}
+      notes=j.notes||notes;
+      j.reports.forEach(r=>{const s=r.summary;
+        h+='<div style="margin-top:12px"><b>'+esc(r.name)+'</b><br>'+
+        '<b>Positive in '+s.positive_slices+' of '+s.slices+' time slices</b> · beat the S&amp;P in <b>'+s.beat_sp_slices+' of '+s.slices+'</b>'+
+        '<br>Whole period: '+pct(r.full.return_pct)+' vs S&amp;P same dollars '+pct(r.full.spy_matched_pct)+' · worst drop '+r.full.max_drawdown_pct+'% · trades '+(r.full_trades.closed_trades||0)+(r.full_trades.profit_factor!=null?' · PF '+r.full_trades.profit_factor:'')+
+        '<br>'+r.slices.map(x=>esc(x.start)+' to '+esc(x.end)+': '+pct(x.return_pct)+' (S&amp;P '+pct(x.spy_matched_pct)+', '+x.trades+' trades)').join('<br>')+'</div>';});
+    }
+    box.innerHTML=h+'<div class="hint" style="margin-top:10px">'+notes.map(esc).join('<br>')+'<br>Past results do not predict future ones.</div>';
+  }catch(e){box.innerHTML=h+'<div style="margin-top:8px">Stopped: '+esc((e&&e.message)||'network error')+'</div>';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const a=qs('#haBtn');if(a)a.onclick=runHa;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
