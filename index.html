@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <title>Precision Alpha AI X24-X26</title>
-  <link rel="icon" type="image/png" sizes="256x256" href="precision-alpha-logo-256.png">
-  <link rel="apple-touch-icon" href="precision-alpha-logo-256.png">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23070a0f'/><text y='.85em' font-size='400' x='50'>📈</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f2bf4b">
   <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -463,6 +464,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="invBody" style="font-size:13px;line-height:1.6"></div>
         <button id="haBtn" class="dark" style="margin:12px 0 8px">Run Heikin-Ashi exit test</button> <span class="hint">(would selling when Heikin-Ashi candles turn red beat the current exit?)</span>
         <div id="haBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="shortBtn" class="dark" style="margin:12px 0 8px">Run short-selling test</button> <span class="hint">(would the same rules, mirrored to sell short while the S&P is under its 20-day average, have made money? Research only: sends no orders, and your live account cannot short)</span>
+        <div id="shortBody" style="font-size:13px;line-height:1.6"></div>
         <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
         <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
@@ -1020,6 +1023,28 @@ async function runHa(){
   btn.disabled=false;
 }
 setTimeout(()=>{const a=qs('#haBtn');if(a)a.onclick=runHa;},1000);
+async function runShort(){
+  const box=qs('#shortBody'),btn=qs('#shortBtn'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  btn.disabled=true; let h='',notes=[];
+  try{
+    for(let i=0;i<4;i++){
+      box.innerHTML=h+'<div class="hint" style="margin-top:8px">Running variant '+(i+1)+' of 4…</div>';
+      const j=await backend('/api/backtest/short?v='+i);
+      if(!j||j.error){h+='<div style="margin-top:12px">Variant '+(i+1)+' failed: '+esc((j&&j.error)||'no response')+'</div>';continue;}
+      notes=j.notes||notes;
+      j.reports.forEach(r=>{const s=r.summary;
+        h+='<div style="margin-top:12px"><b>'+esc(r.name)+'</b><br>'+
+        '<b>Positive in '+s.positive_slices+' of '+s.slices+' time slices</b> · beat the S&amp;P in <b>'+s.beat_sp_slices+' of '+s.slices+'</b>'+
+        '<br>Whole period: '+pct(r.full.return_pct)+' vs S&amp;P same dollars '+pct(r.full.spy_matched_pct)+' · worst drop '+r.full.max_drawdown_pct+'% · trades '+(r.full_trades.closed_trades||0)+(r.full_trades.profit_factor!=null?' · PF '+r.full_trades.profit_factor:'')+
+        '<br>'+r.slices.map(x=>esc(x.start)+' to '+esc(x.end)+': '+pct(x.return_pct)+' (S&amp;P '+pct(x.spy_matched_pct)+', '+x.trades+' trades)').join('<br>')+'</div>';});
+    }
+    box.innerHTML=h+'<div class="hint" style="margin-top:10px">'+notes.map(esc).join('<br>')+'</div>';
+  }catch(e){box.innerHTML=h+'<div style="margin-top:8px">Stopped: '+esc((e&&e.message)||'network error')+'</div>';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const a=qs('#shortBtn');if(a)a.onclick=runShort;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
