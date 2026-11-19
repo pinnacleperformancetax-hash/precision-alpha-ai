@@ -466,6 +466,8 @@ input:focus,select:focus{outline:none;border-color:var(--gold)}
         <div id="haBody" style="font-size:13px;line-height:1.6"></div>
         <button id="shortBtn" class="dark" style="margin:12px 0 8px">Run short-selling test</button> <span class="hint">(would the same rules, mirrored to sell short while the S&P is under its 20-day average, have made money? Research only: sends no orders, and your live account cannot short)</span>
         <div id="shortBody" style="font-size:13px;line-height:1.6"></div>
+        <button id="movesBtn" class="dark" style="margin:12px 0 8px">Run "more movement" test</button> <span class="hint">(4 versions of the entry rules on the same history, each marked PASS or FAIL against: profit factor 1.3+, worst drop under 8%, beats the S&amp;P, and positive in both halves. Sends no orders.)</span>
+        <div id="movesBody" style="font-size:13px;line-height:1.6"></div>
         <button id="propBtn" class="dark" style="margin:12px 0 8px">Run prop-firm challenge simulation</button> <span class="hint">(would this account have passed a typical funded-trader challenge? 8% target, 5% daily loss limit, 10% max loss, 30 days)</span>
         <div id="propBody" style="font-size:13px;line-height:1.6"></div>
       </div>
@@ -1045,6 +1047,31 @@ async function runShort(){
   btn.disabled=false;
 }
 setTimeout(()=>{const a=qs('#shortBtn');if(a)a.onclick=runShort;},1000);
+async function runMoves(){
+  const box=qs('#movesBody'),btn=qs('#movesBtn'); if(!box)return;
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pct=n=>(n==null?'—':(n>0?'+':'')+Number(n).toFixed(1)+'%');
+  btn.disabled=true; let h='',notes=[],passed=0;
+  try{
+    for(let i=0;i<4;i++){
+      box.innerHTML=h+'<div class="hint" style="margin-top:8px">Running version '+'ABCD'[i]+' (of 4)…</div>';
+      const j=await backend('/api/backtest/moves?v='+i);
+      if(!j||j.error){h+='<div style="margin-top:12px">Version '+'ABCD'[i]+' failed: '+esc((j&&j.error)||'no response')+'</div>';continue;}
+      notes=j.notes||notes;
+      j.reports.forEach(r=>{const s=r.summary,pf=r.full_trades.profit_factor,dd=r.full.max_drawdown_pct;
+        const c1=pf!=null&&pf>=1.3,c2=dd!=null&&Math.abs(dd)<8,c3=(r.full.return_pct||0)>(r.full.spy_matched_pct||0),c4=!!s.both_halves_positive;
+        const ok=c1&&c2&&c3&&c4; if(ok)passed++;
+        const m=v=>v?'✓':'✗';
+        h+='<div style="margin-top:12px"><b>'+(ok?'PASS':'FAIL')+' · '+esc(r.name)+'</b><br>'+
+        'Profit factor '+(pf==null?'—':pf)+' '+m(c1)+' · worst drop '+dd+'% '+m(c2)+' · return '+pct(r.full.return_pct)+' vs S&amp;P same dollars '+pct(r.full.spy_matched_pct)+' '+m(c3)+' · both halves positive '+m(c4)+
+        '<br>Trades '+(r.full_trades.closed_trades||0)+' · positive in '+s.positive_slices+' of '+s.slices+' time slices</div>';});
+    }
+    h+='<div style="margin-top:14px"><b>'+(passed?passed+' of 4 versions passed. Screenshot this and send it to me.':'None of the 4 passed. Screenshot this and send it to me.')+'</b></div>';
+    box.innerHTML=h+'<div class="hint" style="margin-top:10px">'+notes.map(esc).join('<br>')+'</div>';
+  }catch(e){box.innerHTML=h+'<div style="margin-top:8px">Stopped: '+esc((e&&e.message)||'network error')+'</div>';}
+  btn.disabled=false;
+}
+setTimeout(()=>{const a=qs('#movesBtn');if(a)a.onclick=runMoves;},1000);
 async function runProp(){
   const box=qs('#propBody'),btn=qs('#propBtn'); if(!box)return;
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
